@@ -180,6 +180,7 @@ def process_scene(scene_name, env, df_obj, df_ego, include_robot):
                                  'heading'])
     inst_scene_pq = df_obj[df_obj.scene_ID == scene_id]
     max_frame_id = int(inst_scene_pq.tail(1).frame_ID)
+    category_ego = env.NodeType.PEDESTRIAN if df_ego.head(1).category.iloc[0] == "PEDESTRIAN" else env.NodeType.VEHICLE
     
     # Loop through Frames
     for i in range(max_frame_id+1):
@@ -187,8 +188,9 @@ def process_scene(scene_name, env, df_obj, df_ego, include_robot):
         # Loop through Nodes
         inst_frame_pq = inst_scene_pq[inst_scene_pq.frame_ID == i]
         for row in inst_frame_pq.itertuples(index=True):
+            category_obj = env.NodeType.PEDESTRIAN if row.category == "PEDESTRIAN" else env.NodeType.VEHICLE
             data_point = pd.Series({'frame_id': row.frame_ID,
-                                    'type': row.category,
+                                    'type': category_obj,
                                     'node_id': row.object_ID,
                                     'robot': False,
                                     'x': row.x,
@@ -205,7 +207,7 @@ def process_scene(scene_name, env, df_obj, df_ego, include_robot):
             frame_frame_pq = inst_scene_pq_ego[inst_scene_pq_ego.Frame_id == i]
             inst_scene_pq_ego = df_ego[df_ego.scene_ID == scene_id]
             data_point_ego = pd.Series({'frame_id': frame_frame_pq.frame_ID,
-                                        'type': frame_frame_pq.category,
+                                        'type': category_ego,
                                         'node_id': 'ego',
                                         'robot': True,
                                         'x': frame_frame_pq.x,
@@ -385,7 +387,7 @@ def process_data_MAVRIC(name, input_path, output_path, val_scenes, test_scenes, 
         for id in test_scenes:
             test_scene_names.append('scene-' + str(id).zfill(4))    
     for id in scene_in_frame:
-        if (id not in val_scenes or val_scenes is None) and (id not in test_scenes or test_scenes is None):
+        if (val_scenes is None or id not in val_scenes) and (test_scenes is None or id not in test_scenes):
             train_scene_names.append('scene-' + str(id).zfill(4))
 
     scene_names = dict()

@@ -98,30 +98,35 @@ def process_scene(env, df_obj, df_ego, df_online, include_robot, scene_id=999):
 
     max_frame_id = int(df_online.tail(1).frame_ID)
     
+    category_ego = env.NodeType.PEDESTRIAN if df_ego.head(1).category.iloc[0] == "PEDESTRIAN" else env.NodeType.VEHICLE
+    
     # Loop through Frames
     for i in range(max_frame_id+1):
         
         current_frame = df_online[df_online.frame_ID == i]
-
-        data_point = pd.Series({'frame_id': current_frame.frame_ID,
-                                'type': current_frame.category,
-                                'node_id': current_frame.object_ID,
-                                'robot': False,
-                                'x': current_frame.x,
-                                'y': current_frame.y,
-                                'z': current_frame.z,
-                                'length': 4.0,
-                                'width': 1.7,
-                                'height': 1.5,
-                                'heading': current_frame.yaw})
         
-        data = data.append(data_point,ignore_index=True)
+        # Loop Through objects in a frame
+        for row in current_frame.itertuples(index=True):
+            category_obj = env.NodeType.PEDESTRIAN if row.category == "PEDESTRIAN" else env.NodeType.VEHICLE
+            data_point = pd.Series({'frame_id': row.frame_ID,
+                                    'type': category_obj,
+                                    'node_id': row.object_ID,
+                                    'robot': False,
+                                    'x': row.x,
+                                    'y': row.y,
+                                    'z': row.z,
+                                    'length': 4.0,
+                                    'width': 1.7,
+                                    'height': 1.5,
+                                    'heading': row.yaw})
+            
+            data = data.append(data_point,ignore_index=True)
         
         if include_robot: # EGO
             frame_frame_pq = inst_scene_pq_ego[inst_scene_pq_ego.Frame_id == i]
             inst_scene_pq_ego = df_ego[df_ego.scene_ID == scene_id]
             data_point_ego = pd.Series({'frame_id': frame_frame_pq.frame_ID,
-                                        'type': frame_frame_pq.category,
+                                        'type': category_ego,
                                         'node_id': 'ego',
                                         'robot': True,
                                         'x': frame_frame_pq.x,
