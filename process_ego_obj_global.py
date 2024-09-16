@@ -211,6 +211,7 @@ def process_data_cmr():
             raise Exception(f"{cmr_gt_path} does not exist.")
 
     df = pd.DataFrame(data, columns=column_names_cmr)
+    df['category'] = df['category'].replace(['CAR', 'BUS', 'BICYCLE'], 'VEHICLE') # For the purpose of the TRAJECTRON++
     
     csv_file_path = os.path.join(output_path, 'kitti_camera_global.csv')
     df.to_csv(csv_file_path, index=False)
@@ -255,6 +256,7 @@ def process_data_obj(camera_csv_path):
             raise Exception(f"{obj_gt_path} does not exist.")
 
     df = pd.DataFrame(data, columns=column_names_obj)
+    df['category'] = df['category'].replace(['CAR', 'BUS', 'BICYCLE'], 'VEHICLE') # For the purpose of the TRAJECTRON++
     
     csv_file_path = os.path.join(output_path, 'kitti_object_global.csv')
     df.to_csv(csv_file_path, index=False)
