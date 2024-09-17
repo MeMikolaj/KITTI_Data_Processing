@@ -1,0 +1,15 @@
+label,num samples,log Hz,mean,stddev,min,max
+anms_timer [ms],94,1.20599,4.03191,0.372499,3,5
+backend-pipeline [ms],95,1.21193,409.442,1139.53,0,5774
+backend-viz-pipeline [ms],92,1.17269,852.261,1165.17,400,6307
+data-interface [ms],95,1.21096,825.305,1154,55,6309
+data-interface_queue_size #,95,1.22369,0,0,0,0
+dataset_spin [ms],94,1.21082,55.9574,1.61921,53,63
+depth_updater [ms],93,1.19523,0.0537634,0.226773,0,1
+dynamic_feature_track [ms],94,1.20602,7.76596,1.37117,5,10
+frontend-pipeline [ms],95,1.2157,356,143.296,0,942
+frontend-viz-pipeline [ms],94,1.19821,834.138,1154.54,239,6351
+pipeline_spin [ms],96,1.22371,816.406,1149.68,0,6309
+static_feature_track [ms],94,1.20562,31.0532,1.8279,28,36
+tracked_dynamic_features [ms],93,1.19513,2.05376,1.13603,0,4
+tracking_timer [ms],93,1.19417,51.8172,7.034,41,71

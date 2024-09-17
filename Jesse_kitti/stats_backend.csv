@@ -1,0 +1,4 @@
+label,num samples,log Hz,mean,stddev,min,max
+backend.sliding_window_construction [ms],5,0.0868187,489.4,76.2056,412,610
+backend.update_dynamic_obs [ms],92,1.19301,16.413,6.44188,0,34
+backend.update_static_obs [ms],92,1.19308,1.55435,0.581097,1,3

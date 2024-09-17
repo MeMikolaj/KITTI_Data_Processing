@@ -1,0 +1,8 @@
+label,num samples,log Hz,mean,stddev,min,max
+motion_solver.joint_of_pose [ms],278,3.57067,30.7302,20.3027,0,84
+motion_solver.joint_of_pose_num_vars_all,278,3.57123,310.565,182.642,8,746
+motion_solver.joint_of_pose_num_vars_inliers,278,3.57218,310.565,182.642,8,746
+motion_solver.object_nlo_refinement [ms],185,2.37732,85.3946,78.3407,3,672
+motion_solver.object_nlo_refinement_num_vars_all,185,2.37867,475.919,348.631,17,1493
+motion_solver.object_solve3d2d [ms],189,2.42748,111.746,98.1803,0,753
+motion_solver.solve_3d2d [ms],282,3.62227,2.10993,1.46075,0,5

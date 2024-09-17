@@ -1,0 +1,10 @@
+label,num samples,log Hz,mean,stddev,min,max
+rgbd_motion_world.dyn_object_affected [ms],192,2.48978,0.046875,0.294612,0,3
+rgbd_motion_world.dyn_point_update_1 [ms],10079,131.521,0,0,0,0
+rgbd_motion_world.dyn_point_update_2 [ms],64404,845.289,0,0,0,0
+rgbd_motion_world.dynamic_object_itr [ms],192,2.48975,17.6146,6.82062,0,40
+rgbd_motion_world.dynamic_point_backtrack [ms],10079,131.521,0,0,0,0
+rgbd_motion_world.dynamic_point_itr [ms],382,4.95363,6.45812,5.41962,0,28
+rgbd_motion_world.post_update [ms],92,1.18948,125.076,67.2914,2,236
+rgbd_motion_world.sliding_window_optimise [ms],5,0.0810979,4352.2,573.096,3496,5057
+rgbd_motion_world.sliding_window_optimise_num_vars_all,5,0.087594,11280,1931.15,9023,13396
