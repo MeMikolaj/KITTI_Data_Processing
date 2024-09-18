@@ -107,6 +107,34 @@ def get_maps_for_input(input_dict, scene, hyperparams):
     return maps_dict
 
 
+
+def plot_gt_data(ax, df, start_frame_ID, object_ID_list, color='purple'):
+    """
+    Plot trajectories for each object_ID in the list on the given axis.
+
+    Parameters:
+    - ax (matplotlib.axes.Axes): The axis on which to plot the trajectories.
+    - df (pandas.DataFrame): The DataFrame containing the data with columns ['frame_ID', 'object_ID', 'x', 'y'].
+    - start_frame_ID (int): The starting frame ID for the trajectories.
+    - object_ID_list (list): A list of object_IDs to plot.
+    """
+    for object_ID in object_ID_list:
+        # Filter data for the specific object_ID
+        df_obj = df[df['object_ID'] == object_ID]
+        
+        # Filter data for the frames starting from start_frame_ID up to 21 frames
+        df_filtered = df_obj[(df_obj['frame_ID'] >= start_frame_ID) & (df_obj['frame_ID'] <= start_frame_ID + 20)]
+        
+        # Ensure that there are enough frames to plot
+        if df_filtered.shape[0] > 1:
+            # Sort by frame_ID to ensure the plot is sequential
+            df_filtered = df_filtered.sort_values(by='frame_ID')
+
+            # Plot the trajectory
+            ax.plot(df_filtered['x'], df_filtered['y'], color=color, linestyle='-')
+    
+
+
 def main():
     # Choose one of the model directory names under the experiment/*/models folders.
     # Possibilities are 'vel_ee', 'int_ee', 'int_ee_me', or 'robot'
@@ -115,8 +143,8 @@ def main():
     # 'models_04_Sep_2024_15_43_27_robot' for dynamc integration + robot/camera pose & prediction included
     # model_dir = os.path.join(args.log_dir, 'models_04_Sep_2024_15_43_27_robot')
     # model_dir = os.path.join(args.log_dir, 'models_03_Sep_2024_17_15_24_int_ee')
-    model_dir = os.path.join(args.log_dir, 'models_05_Sep_global_robot') # Global with Robot
-    # model_dir = os.path.join(args.log_dir, 'models_06_Sep_global') # Global
+    model_dir = os.path.join(args.log_dir, 'models_17_Sep_2024_13_24_14_dynamic') # Global Dynamic
+
 
     # df = pd.read_csv('/home/mikolaj@acfr.usyd.edu.au/KITTI_CODE/KITTI_data_processed/kitti_processed_data_camera.csv')
     # frame_ids = np.unique(df.Frame_id.to_numpy())
@@ -141,7 +169,7 @@ def main():
     hyperparams['edge_encoding'] = not args.no_edge_encoding
     hyperparams['use_map_encoding'] = args.map_encoding
 
-    output_save_dir = os.path.join(model_dir, 'pred_figs_robot_global_pred20')
+    output_save_dir = os.path.join(model_dir, 'jesse_gt_no0')
     pathlib.Path(output_save_dir).mkdir(parents=True, exist_ok=True)
 
     eval_data_path = os.path.join(args.data_dir, args.eval_data_dict)
@@ -167,7 +195,7 @@ def main():
     online_env = create_online_env(eval_env, hyperparams, scene_idx, init_timestep)
 
     model_registrar = ModelRegistrar(model_dir, args.eval_device)
-    model_registrar.load_models(iter_num=12)
+    model_registrar.load_models(iter_num=100) # Model number after Epoch!!!
 
     trajectron = OnlineTrajectron(model_registrar,
                                   hyperparams,
@@ -180,7 +208,23 @@ def main():
     # Here's how you'd incrementally run the model, e.g. with streaming data.
     trajectron.set_environment(online_env, init_timestep)
 
+
+    ########################## MY DATAFRAME
+    data_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed'
+    obj_path_online = os.path.join(data_path, 'jesse_object_final.csv') # obj_jesse csv file name
+    df_obj_online = pd.read_csv(obj_path_online)
+    max_frame = df_obj_online['frame_ID'].max()
+    
+    data_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/global_data/'
+    obj_path_gt = os.path.join(data_path, 'kitti_object_global.csv') # obj_gt csv file name
+    df_obj_gt = pd.read_csv(obj_path_online)
+    
     for timestep in range(init_timestep + 1, eval_scene.timesteps):
+        ############ CODE FOR PLOTTIN GT DATA
+        filtered_df = df_obj_online[df_obj_online['frame_ID'] == timestep]
+        # Get unique object_ID values and convert to a list
+        unique_object_ids_list = filtered_df['object_ID'].unique().tolist()
+        ############ END OF MY CODE
         
         input_dict = eval_scene.get_clipped_input_dict(timestep, hyperparams['state'])
 
@@ -259,13 +303,22 @@ def main():
                 detailed_preds_dict[node] = preds[node]
 
         fig, ax = plt.subplots()
+        
+        pred_num = min(max_frame - timestep, hyperparams['prediction_horizon']) # Visualise 
+        
         vis.visualize_distribution(ax,
-                                   dists)
+                                   dists,
+                                   pred_num)
+        
         vis.visualize_prediction(ax,
                                  {timestep: preds},
                                  eval_scene.dt,
                                  hyperparams['maximum_history_length'],
-                                 hyperparams['prediction_horizon'])
+                                 hyperparams['prediction_horizon'],
+                                 pred_num)
+        
+        plot_gt_data(ax, df_obj_online, timestep, unique_object_ids_list, color='purple')
+        plot_gt_data(ax, df_obj_gt, timestep, unique_object_ids_list, color='red')
 
         
         if eval_scene.robot is not None and hyperparams['incl_robot_node']:

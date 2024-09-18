@@ -244,6 +244,7 @@ def process_data():
                 data_acc.append(row_as_list + [ax, ay])
     
     df_acc = pd.DataFrame(data_acc, columns=column_names_acc)
+    df_acc['category'] = df_acc['category'].replace(['CAR', 'BUS', 'BICYCLE'], 'VEHICLE') # For the purpose of the TRAJECTRON++
     
     ####################### SAVE TO CSV FILE #######################
     csv_file_path = os.path.join(output_path, 'jesse_object_final.csv')

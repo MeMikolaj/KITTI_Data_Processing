@@ -84,8 +84,11 @@ def trajectory_curvature(t):
     return (path_length / path_distance) - 1, path_length, path_distance
 
 
-def process_scene(env, df_obj, df_ego, df_online, include_robot, scene_id=999):
-
+def process_scene(env, df_ego, df_online, include_robot, kalman=False, scene_id=999):
+    global total
+    global curv_0_2
+    global curv_0_1
+                
     data = pd.DataFrame(columns=['frame_id',
                                  'type',
                                  'node_id',
@@ -146,140 +149,207 @@ def process_scene(env, df_obj, df_ego, df_online, include_robot, scene_id=999):
     data.sort_values('frame_id', inplace=True)
     max_timesteps = data['frame_id'].max()
 
-    x_min = np.round(data['x'].min() - 50)
-    # x_max = np.round(data['x'].max() + 50)
-    y_min = np.round(data['y'].min() - 50)
-    # y_max = np.round(data['y'].max() + 50)
+    # x_min = np.round(data['x'].min() - 50)
+    # # x_max = np.round(data['x'].max() + 50)
+    # y_min = np.round(data['y'].min() - 50)
+    # # y_max = np.round(data['y'].max() + 50)
     
-    print(f"x_min: {x_min} and -50")
-    print(f"y_min: {y_min} and -50")
+    # print(f"x_min: {x_min} and -50")
+    # print(f"y_min: {y_min} and -50")
 
-    data['x'] = data['x'] - x_min
-    data['y'] = data['y'] - y_min
+    # data['x'] = data['x'] - x_min
+    # data['y'] = data['y'] - y_min
 
     scene = Scene(timesteps=max_timesteps + 1, dt=dt, name=str(scene_id), aug_func=augment)
 
+    if kalman:
+    # KALMAN FILTER VERSION #
+        for node_id in pd.unique(data['node_id']):
+            node_frequency_multiplier = 1
+            node_df = data[data['node_id'] == node_id]
+            if node_df['x'].shape[0] < 2:
+                continue
 
-    ##############################################################
-    ##                                                          ##
-    ## This part has to be updated for the online Processing!!! ##
-    ##                                                          ##
-    ##############################################################
-    
-    for node_id in pd.unique(data['node_id']):
-        node_frequency_multiplier = 1
-        node_df = data[data['node_id'] == node_id]
-        if node_df['x'].shape[0] < 2:
-            continue
+            if not np.all(np.diff(node_df['frame_id']) == 1):
+                # print('Occlusion')
+                continue  # TODO Make better
+            node_values = node_df[['x', 'y']].values
+            x = node_values[:, 0]
+            y = node_values[:, 1]
+            heading = node_df['heading'].values
+            
+            if node_df.iloc[0]['type'] == env.NodeType.VEHICLE and not node_id == 'ego':
+                
+                # Kalman filter Agent
+                vx = derivative_of(x, scene.dt)
+                vy = derivative_of(y, scene.dt)
+                velocity = np.linalg.norm(np.stack((vx, vy), axis=-1), axis=-1)
 
-        if not np.all(np.diff(node_df['frame_id']) == 1):
-            # print('Occlusion')
-            continue  # TODO Make better
-        node_values = node_df[['x', 'y']].values
-        x = node_values[:, 0]
-        y = node_values[:, 1]
-        heading = node_df['heading'].values
-        
-        if node_df.iloc[0]['type'] == env.NodeType.VEHICLE and not node_id == 'ego':
-            # Kalman filter Agent
+                filter_veh = NonlinearKinematicBicycle(dt=scene.dt, sMeasurement=1.0)
+                P_matrix = None
+                for i in range(len(x)):
+                    if i == 0:  # initalize KF
+                        # initial P_matrix
+                        P_matrix = np.identity(4)
+                    elif i < len(x):
+                        # assign new est values
+                        x[i] = x_vec_est_new[0][0]
+                        y[i] = x_vec_est_new[1][0]
+                        heading[i] = x_vec_est_new[2][0]
+                        velocity[i] = x_vec_est_new[3][0]
+
+                    if i < len(x) - 1:  # no action on last data
+                        # filtering
+                        x_vec_est = np.array([[x[i]],
+                                            [y[i]],
+                                            [heading[i]],
+                                            [velocity[i]]])
+                        z_new = np.array([[x[i + 1]],
+                                        [y[i + 1]],
+                                        [heading[i + 1]],
+                                        [velocity[i + 1]]])
+                        x_vec_est_new, P_matrix_new = filter_veh.predict_and_update(
+                            x_vec_est=x_vec_est,
+                            u_vec=np.array([[0.], [0.]]),
+                            P_matrix=P_matrix,
+                            z_new=z_new
+                        )
+                        P_matrix = P_matrix_new
+
+                curvature, pl, _ = trajectory_curvature(np.stack((x, y), axis=-1))
+                if pl < 1.0:  # vehicle is "not" moving
+                    x = x[0].repeat(max_timesteps + 1)
+                    y = y[0].repeat(max_timesteps + 1)
+                    heading = heading[0].repeat(max_timesteps + 1)
+                total += 1
+                if pl > 1.0:
+                    if curvature > .2:
+                        curv_0_2 += 1
+                        node_frequency_multiplier = 3*int(np.floor(total/curv_0_2))
+                    elif curvature > .1:
+                        curv_0_1 += 1
+                        node_frequency_multiplier = 3*int(np.floor(total/curv_0_1))
+
             vx = derivative_of(x, scene.dt)
             vy = derivative_of(y, scene.dt)
-            velocity = np.linalg.norm(np.stack((vx, vy), axis=-1), axis=-1)
+            ax = derivative_of(vx, scene.dt)
+            ay = derivative_of(vy, scene.dt)
 
-            filter_veh = NonlinearKinematicBicycle(dt=scene.dt, sMeasurement=1.0)
-            P_matrix = None
-            for i in range(len(x)):
-                if i == 0:  # initalize KF
-                    # initial P_matrix
-                    P_matrix = np.identity(4)
-                elif i < len(x):
-                    # assign new est values
-                    x[i] = x_vec_est_new[0][0]
-                    y[i] = x_vec_est_new[1][0]
-                    heading[i] = x_vec_est_new[2][0]
-                    velocity[i] = x_vec_est_new[3][0]
+            if node_df.iloc[0]['type'] == env.NodeType.VEHICLE:
+                v = np.stack((vx, vy), axis=-1)
+                v_norm = np.linalg.norm(np.stack((vx, vy), axis=-1), axis=-1, keepdims=True)
+                heading_v = np.divide(v, v_norm, out=np.zeros_like(v), where=(v_norm > 1.))
+                heading_x = heading_v[:, 0]
+                heading_y = heading_v[:, 1]
+                heading = heading.astype('float64')
+                data_dict = {('position', 'x'): x,
+                            ('position', 'y'): y,
+                            ('velocity', 'x'): vx,
+                            ('velocity', 'y'): vy,
+                            ('velocity', 'norm'): np.linalg.norm(np.stack((vx, vy), axis=-1), axis=-1),
+                            ('acceleration', 'x'): ax,
+                            ('acceleration', 'y'): ay,
+                            ('acceleration', 'norm'): np.linalg.norm(np.stack((ax, ay), axis=-1), axis=-1),
+                            ('heading', 'x'): heading_x,
+                            ('heading', 'y'): heading_y,
+                            ('heading', '°'): heading,
+                            ('heading', 'd°'): derivative_of(heading, dt, radian=True)}
+                node_data = pd.DataFrame(data_dict, columns=data_columns_vehicle)
+            else:
+                data_dict = {('position', 'x'): x,
+                            ('position', 'y'): y,
+                            ('velocity', 'x'): vx,
+                            ('velocity', 'y'): vy,
+                            ('acceleration', 'x'): ax,
+                            ('acceleration', 'y'): ay}
+                node_data = pd.DataFrame(data_dict, columns=data_columns_pedestrian)
 
-                if i < len(x) - 1:  # no action on last data
-                    # filtering
-                    x_vec_est = np.array([[x[i]],
-                                          [y[i]],
-                                          [heading[i]],
-                                          [velocity[i]]])
-                    z_new = np.array([[x[i + 1]],
-                                      [y[i + 1]],
-                                      [heading[i + 1]],
-                                      [velocity[i + 1]]])
-                    x_vec_est_new, P_matrix_new = filter_veh.predict_and_update(
-                        x_vec_est=x_vec_est,
-                        u_vec=np.array([[0.], [0.]]),
-                        P_matrix=P_matrix,
-                        z_new=z_new
-                    )
-                    P_matrix = P_matrix_new
+            node = Node(node_type=node_df.iloc[0]['type'], node_id=node_id, data=node_data, frequency_multiplier=node_frequency_multiplier)
+            # print(node.type)
+            node.first_timestep = node_df['frame_id'].iloc[0]
+            if node_df.iloc[0]['robot'] == True:
+                node.is_robot = True
+                scene.robot = node
+            scene.nodes.append(node)
+    
+    ###################### OUR VERSION ###########################
+    else:
+        for node_id in pd.unique(data['node_id']):
+            node_frequency_multiplier = 1
+            node_df = data[data['node_id'] == node_id]
 
-            curvature, pl, _ = trajectory_curvature(np.stack((x, y), axis=-1))
-            if pl < 1.0:  # vehicle is "not" moving
-                x = x[0].repeat(max_timesteps + 1)
-                y = y[0].repeat(max_timesteps + 1)
-                heading = heading[0].repeat(max_timesteps + 1)
-            global total
-            global curv_0_2
-            global curv_0_1
-            total += 1
-            if pl > 1.0:
-                if curvature > .2:
-                    curv_0_2 += 1
-                    node_frequency_multiplier = 3*int(np.floor(total/curv_0_2))
-                elif curvature > .1:
-                    curv_0_1 += 1
-                    node_frequency_multiplier = 3*int(np.floor(total/curv_0_1))
+            if node_df.iloc[0]['type'] == env.NodeType.VEHICLE and not node_id == 'ego':
+                
+                vx = df_online.loc[df_online['object_ID'] == node_id, 'vx']
+                vy = df_online.loc[df_online['object_ID'] == node_id, 'vy']
+                
+                ax = df_online.loc[df_online['object_ID'] == node_id, 'ax']
+                ay = df_online.loc[df_online['object_ID'] == node_id, 'ay']
+            
+                node_values = node_df[['x', 'y']].values
+                x = node_values[:, 0]
+                y = node_values[:, 1]
+                heading = node_df['heading'].values
+            
+                curvature, pl, _ = trajectory_curvature(np.stack((x, y), axis=-1))
+                # if pl < 1.0:  # vehicle is "not" moving
+                #     x = x[0].repeat(max_timesteps + 1)
+                #     y = y[0].repeat(max_timesteps + 1)
+                #     heading = heading[0].repeat(max_timesteps + 1)
+                total += 1
+                if pl > 1.0:
+                    if curvature > .2:
+                        curv_0_2 += 1
+                        node_frequency_multiplier = 3*int(np.floor(total/curv_0_2))
+                    elif curvature > .1:
+                        curv_0_1 += 1
+                        node_frequency_multiplier = 3*int(np.floor(total/curv_0_1))
 
-        vx = derivative_of(x, scene.dt)
-        vy = derivative_of(y, scene.dt)
-        ax = derivative_of(vx, scene.dt)
-        ay = derivative_of(vy, scene.dt)
-
-        if node_df.iloc[0]['type'] == env.NodeType.VEHICLE:
-            v = np.stack((vx, vy), axis=-1)
-            v_norm = np.linalg.norm(np.stack((vx, vy), axis=-1), axis=-1, keepdims=True)
-            heading_v = np.divide(v, v_norm, out=np.zeros_like(v), where=(v_norm > 1.))
-            heading_x = heading_v[:, 0]
-            heading_y = heading_v[:, 1]
-            heading = heading.astype('float64')
-            data_dict = {('position', 'x'): x,
-                         ('position', 'y'): y,
-                         ('velocity', 'x'): vx,
-                         ('velocity', 'y'): vy,
-                         ('velocity', 'norm'): np.linalg.norm(np.stack((vx, vy), axis=-1), axis=-1),
-                         ('acceleration', 'x'): ax,
-                         ('acceleration', 'y'): ay,
-                         ('acceleration', 'norm'): np.linalg.norm(np.stack((ax, ay), axis=-1), axis=-1),
-                         ('heading', 'x'): heading_x,
-                         ('heading', 'y'): heading_y,
-                         ('heading', '°'): heading,
-                         ('heading', 'd°'): derivative_of(heading, dt, radian=True)}
-            node_data = pd.DataFrame(data_dict, columns=data_columns_vehicle)
-        else:
-            data_dict = {('position', 'x'): x,
-                         ('position', 'y'): y,
-                         ('velocity', 'x'): vx,
-                         ('velocity', 'y'): vy,
-                         ('acceleration', 'x'): ax,
-                         ('acceleration', 'y'): ay}
-            node_data = pd.DataFrame(data_dict, columns=data_columns_pedestrian)
-
-        node = Node(node_type=node_df.iloc[0]['type'], node_id=node_id, data=node_data, frequency_multiplier=node_frequency_multiplier)
-        # print(node.type)
-        node.first_timestep = node_df['frame_id'].iloc[0]
-        if node_df.iloc[0]['robot'] == True:
-            node.is_robot = True
-            scene.robot = node
-        scene.nodes.append(node)
+            # CODE FOR CALCULATING VX VY AX AY NEEDED FOR NOT VEHICLES
+            if node_df.iloc[0]['type'] == env.NodeType.VEHICLE:
+                v = np.stack((vx, vy), axis=-1)
+                v_norm = np.linalg.norm(np.stack((vx, vy), axis=-1), axis=-1, keepdims=True)
+                heading_v = np.divide(v, v_norm, out=np.zeros_like(v), where=(v_norm > 1.))
+                heading_x = heading_v[:, 0]
+                heading_y = heading_v[:, 1]
+                heading = heading.astype('float64')
+                data_dict = {('position', 'x'): x,
+                            ('position', 'y'): y,
+                            ('velocity', 'x'): vx,
+                            ('velocity', 'y'): vy,
+                            ('velocity', 'norm'): np.linalg.norm(np.stack((vx, vy), axis=-1), axis=-1),
+                            ('acceleration', 'x'): ax,
+                            ('acceleration', 'y'): ay,
+                            ('acceleration', 'norm'): np.linalg.norm(np.stack((ax, ay), axis=-1), axis=-1),
+                            ('heading', 'x'): heading_x,
+                            ('heading', 'y'): heading_y,
+                            ('heading', '°'): heading,
+                            ('heading', 'd°'): derivative_of(heading, dt, radian=True)}
+                node_data = pd.DataFrame(data_dict, columns=data_columns_vehicle)
+            else:
+                data_dict = {('position', 'x'): x,
+                            ('position', 'y'): y,
+                            ('velocity', 'x'): vx,
+                            ('velocity', 'y'): vy,
+                            ('acceleration', 'x'): ax,
+                            ('acceleration', 'y'): ay}
+                node_data = pd.DataFrame(data_dict, columns=data_columns_pedestrian)
+            print(data_dict)
+            node = Node(node_type=node_df.iloc[0]['type'], node_id=node_id, data=node_data, frequency_multiplier=node_frequency_multiplier)
+            # print(node.type)
+            node.first_timestep = node_df['frame_id'].iloc[0]
+            if node_df.iloc[0]['robot'] == True:
+                node.is_robot = True
+                scene.robot = node
+            scene.nodes.append(node)
+        
+        
     # print(scene)
     return scene
 
+# ['scene_ID', 'frame_ID', 'object_ID', 'category', 'x', 'y', 'z', 'roll', 'pitch', 'yaw', 'vx', 'vy', 'ax', 'ay']
 
-def process_data_MAVRIC(name, input_path, output_path, val_scenes, test_scenes, include_ego):
+def process_data_MAVRIC(name, input_path, output_path, include_ego):
     global dt
     if ('NuScene' in name):
         dt = 0.5
@@ -292,16 +362,12 @@ def process_data_MAVRIC(name, input_path, output_path, val_scenes, test_scenes, 
     elif ('KITTI' in name): # My KITTI dt is 20Hz 0.05s
         dt = 0.05
         
-    obj_path = os.path.join(input_path, 'kitti_object_global.csv') # obj csv file name
-    df_obj = pd.read_csv(obj_path)
+    obj_path_online = os.path.join(input_path, 'jesse_object_final.csv') # obj csv file name
+    df_obj = pd.read_csv(obj_path_online)
     df_obj = df_obj[df_obj['category'] == 'VEHICLE'] # Filter for vehicles only for the purpose of the project
     
-    cmr_path = os.path.join(input_path, 'kitti_camera_global.csv') # ego csv file name
-    df_ego = pd.read_csv(cmr_path)
-
-    
-    online_path = os.path.join(input_path, 'kitti_online.csv') # online csv file name
-    df_online = pd.read_csv(online_path)
+    cmr_path_online = os.path.join(input_path, 'jesse_camera_global.csv') # ego csv file name
+    df_ego = pd.read_csv(cmr_path_online)
 
     # 1 Scene only
     env = Environment(node_type_list=['VEHICLE', 'PEDESTRIAN'], standardization=standardization)
@@ -314,11 +380,11 @@ def process_data_MAVRIC(name, input_path, output_path, val_scenes, test_scenes, 
     env.attention_radius = attention_radius
     env.robot_type = env.NodeType.VEHICLE # Camera Base
     
-    scene = process_scene(env, df_obj, df_ego, df_online, include_ego, scene_id=999)
+    scene = process_scene(env, df_ego, df_obj, include_ego, kalman=False, scene_id=999)
 
     env.scenes = [scene]
 
-    data_dict_path = os.path.join(output_path, 'kitti_online.pkl')
+    data_dict_path = os.path.join(output_path, 'kitti_online_jesse.pkl')
     with open(data_dict_path, 'wb') as f:
         dill.dump(env, f, protocol=dill.HIGHEST_PROTOCOL)
     print('Saved Environment!')
@@ -326,10 +392,8 @@ def process_data_MAVRIC(name, input_path, output_path, val_scenes, test_scenes, 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', type=str, required=False, default='/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/global_data', help='Path to the folder with object and camera data csv files')
+    parser.add_argument('--data_path', type=str, required=False, default='/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed', help='Path to the folder with object and camera data csv files')
     parser.add_argument('--output_path', type=str, required=False, default='/home/mikolaj@acfr.usyd.edu.au/Trajectron-plus-plus/experiments/processed', help='Output path where data should be saved')
-    parser.add_argument('--val_scenes', type=int, nargs='+', required=False, help='A list of integers representing validation scenes')
-    parser.add_argument('--test_scenes', type=int, nargs='+', required=False, help='A list of integers representing test scenes')
     parser.add_argument('--include_ego', type=bool, required=False, default=False, help='Should ego robot be included in data')
     args = parser.parse_args()
-    process_data_MAVRIC("KITTI", args.data_path, args.output_path, args.val_scenes, args.test_scenes, args.include_ego)
+    process_data_MAVRIC("KITTI", args.data_path, args.output_path, args.include_ego)
