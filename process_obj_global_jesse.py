@@ -48,7 +48,7 @@ def cmr_coordinate_to_world() -> np.ndarray:
     transformation_matrix[0:3, 3] = translation_vector
     return(transformation_matrix)
 
-def cv_to_normal(data, mode):
+def cv_to_normal(data, mode, ret_rotation=False):
     """ Take a list in cv format and return a normal list in: frameID t1 t2 t3 R11 R12 R13 R21 R22 R23 R31 R32 R33
 
     Args:
@@ -63,18 +63,17 @@ def cv_to_normal(data, mode):
     homogeneous_matrix = ingredient_1 @ ingredient_2 @ np.linalg.inv(ingredient_1)
     
     translation_vector = homogeneous_matrix[0:3, 3]
-    rotation_matrix = homogeneous_matrix[0:3, 0:3]
-    
-    rotation = R.from_matrix(rotation_matrix)
-    euler_angles = rotation.as_euler('zyx', degrees=False)  # Yaw, Pitch, Roll
 
-    # Extract individual angles
-    yaw, pitch, roll = euler_angles
- 
     if mode == "camera":
-        to_return = np.concatenate([[int(data.frame_id)], translation_vector, np.array([roll, pitch, yaw])])
-    elif mode == "object":
+        to_return = np.concatenate([[int(data.frame_id)], translation_vector])
+    elif mode == "object" and ret_rotation:
+        rotation_matrix = homogeneous_matrix[0:3, 0:3]
+        rotation = R.from_matrix(rotation_matrix)
+        euler_angles = rotation.as_euler('zyx', degrees=False)  # Yaw, Pitch, Roll
+        yaw, pitch, roll = euler_angles
         to_return = np.concatenate([[data.frame_id, data.object_id], translation_vector, np.array([roll, pitch, yaw])])
+    elif mode == "object":
+        to_return = np.concatenate([[data.frame_id, data.object_id], translation_vector])
     else:
         raise Exception("mode must be \"camera\" if processing for ego camera or \"object\" if processing the objects' data.")
         
@@ -111,6 +110,41 @@ def local_to_global(folder_name, local_values, df_ego, category_dict):
     to_ret.insert(2, category_dict[str(int(local_values[1]))])
     return [folder_name] + to_ret
 
+def create_yaw(df):
+    # Sort the DataFrame by 'scene_ID' and 'frame_ID'
+    df.sort_values(by=['scene_ID', 'frame_ID'], inplace=True)
+    
+    # Initialize the 'yaw' column with NaN
+    df['yaw'] = np.nan
+
+    # Calculate 'yaw' for each unique scene_ID and object_ID
+    for scene_id in df['scene_ID'].unique():
+        scene_df = df[df['scene_ID'] == scene_id]
+        
+        for obj_id in scene_df['object_ID'].unique():
+            obj_df = scene_df[scene_df['object_ID'] == obj_id]
+            
+            for i in range(len(obj_df) - 1):
+                current_index = obj_df.index[i]
+                next_index = obj_df.index[i + 1]
+                
+                # Calculate yaw using atan2
+                yaw_value = np.arctan2(
+                    df['y'].iloc[next_index] - df['y'].iloc[current_index], 
+                    df['x'].iloc[next_index] - df['x'].iloc[current_index] 
+                )
+                
+                # Assign the yaw value to the current index
+                df.loc[current_index, 'yaw'] = yaw_value
+
+    # Drop the last values for each object where 'yaw' is NaN
+    df.dropna(subset=['yaw'], inplace=True)
+
+    # Reset the index after dropping rows
+    df.reset_index(drop=True, inplace=True)
+
+    return df
+
 # ------------------------------------------------------------------------------------------------------------ #
 
 base_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_kitti'
@@ -134,26 +168,30 @@ def process_data():
     
     ####################### CAMERA POSE CV TO NORMAL TO CSV FILE #######################
     
-    column_names_cmr = ['scene_ID', 'frame_ID', 'object_ID', 'category', 'x', 'y', 'z', 'roll', 'pitch', 'yaw']
+    column_names_cmr = ['scene_ID', 'frame_ID', 'object_ID', 'category', 'x', 'y', 'z']
     data_camera = []
     
     # Change camera data to global in normal x, y, z coordinates.
     for row in df_cmr_pose.itertuples(index=True):
         normal_values = cv_to_normal(row, mode="camera")
         data_entry = [0, 'CAR', 'ego'] + normal_values
-        data_entry = [data_entry[i] for i in [0, 3, 2, 1, 4, 5, 6, 7, 8, 9]]
+        data_entry = [data_entry[i] for i in [0, 3, 2, 1, 4, 5, 6]]
         data_camera.append(data_entry)
 
     df_cmr = pd.DataFrame(data_camera, columns=column_names_cmr)
-    df_cmr['frame_ID'] = df_cmr['frame_ID'].astype(int)
+    df_cmr['category'] = df_cmr['category'].replace(['CAR', 'BUS', 'BICYCLE'], 'VEHICLE') # For the purpose of the TRAJECTRON++
+    df_cmr['x'] = df_cmr['x'].astype(float); df_cmr['y'] = df_cmr['y'].astype(float)
+    df_cmr['frame_ID'] = df_cmr['frame_ID'].astype(int); df_cmr['scene_ID'] = df_cmr['scene_ID'].astype(int)
+    df_camera_save = create_yaw(df_cmr)
+    df_camera_save.sort_values(by=['scene_ID', 'frame_ID'], inplace=True)
     csv_file_path = os.path.join(output_path, 'jesse_camera_global.csv')
-    df_cmr.to_csv(csv_file_path, index=False)
+    df_camera_save.to_csv(csv_file_path, index=False)
     print(f"Camera data successfully saved to: \"{csv_file_path}\"")
     
     
     ####################### OBJECT POSE CV TO NORMAL #######################
     
-    column_names_obj = ['scene_ID', 'frame_ID', 'object_ID', 'category', 'x', 'y', 'z', 'roll', 'pitch', 'yaw']
+    column_names_obj = ['scene_ID', 'frame_ID', 'object_ID', 'category', 'x', 'y', 'z']
     data_obj = []
     
     # Get Objects Categories
@@ -174,12 +212,16 @@ def process_data():
         data_obj.append(data_entry)
 
     df_obj = pd.DataFrame(data_obj, columns=column_names_obj)
-    df_obj['frame_ID'] = df_obj['frame_ID'].astype(int)
-    df_obj['object_ID'] = df_obj['object_ID'].astype(int)
+    
+    df_obj['category'] = df_obj['category'].replace(['CAR', 'BUS', 'BICYCLE'], 'VEHICLE') # For the purpose of the TRAJECTRON++
+    df_obj['x'] = df_obj['x'].astype(float); df_obj['y'] = df_obj['y'].astype(float)
+    df_obj['frame_ID'] = df_obj['frame_ID'].astype(int); df_obj['object_ID'] = df_obj['object_ID'].astype(int)
+    df_obj = create_yaw(df_obj)
     df_obj = df_obj[df_obj['frame_ID'] <= 85] # DATA CONSTRAINTS
     csv_file_path = os.path.join(output_path, 'jesse_object_global.csv')
     df_obj.to_csv(csv_file_path, index=False)
     print(f"Object data successfully saved to: \"{csv_file_path}\"")
+    df_obj = df_obj.drop(columns=['yaw']).copy()
 
     ####################### MOTION POSE CV TO NORMAL #######################
     
@@ -188,7 +230,7 @@ def process_data():
 
     # Change objects data to global in normal x, y, z coordinates.
     for row in df_obj_motion.itertuples(index=True):
-        normal_values = cv_to_normal(row, mode="object")
+        normal_values = cv_to_normal(row, mode="object", ret_rotation=True)
         data_entry = [0] + normal_values
         data_entry.insert(3, category_dict[str(int(normal_values[1]))])
         # data_entry = local_to_global(0, normal_values, df_cmr_pose, category_dict)
@@ -198,9 +240,9 @@ def process_data():
     df_motion_pose['frame_ID'] = df_motion_pose['frame_ID'].astype(int)
     df_motion_pose['object_ID'] = df_motion_pose['object_ID'].astype(int)
     df_motion_pose = df_motion_pose[df_motion_pose['frame_ID'] <= 85] # DATA CONSTRAINTS
-    csv_file_path = os.path.join(output_path, 'jesse_motion_global.csv')
-    df_motion_pose.to_csv(csv_file_path, index=False)
-    print(f"Motion data successfully saved to: \"{csv_file_path}\"")
+    # csv_file_path = os.path.join(output_path, 'jesse_motion_global.csv')
+    # df_motion_pose.to_csv(csv_file_path, index=False)
+    # print(f"Motion data successfully saved to: \"{csv_file_path}\"")
     
     
     ####################### GET VELOCITY #######################
@@ -210,7 +252,7 @@ def process_data():
         velocities = np.array([data_motion.x.iloc[0], data_motion.y.iloc[0], data_motion.z.iloc[0]]) - (np.eye(3) - r) @ np.array([data_obj.x, data_obj.y, data_obj.z])
         return velocities[0]/dt, velocities[1]/dt, velocities[2]/dt
     
-    column_names_vel = ['scene_ID', 'frame_ID', 'object_ID', 'category', 'x', 'y', 'z', 'roll', 'pitch', 'yaw', 'vx', 'vy']
+    column_names_vel = ['scene_ID', 'frame_ID', 'object_ID', 'category', 'x', 'y', 'z', 'vx', 'vy']
     data_vels = []
     
     for row in df_obj.itertuples(index=False):
@@ -224,6 +266,8 @@ def process_data():
             
     df_vels = pd.DataFrame(data_vels, columns=column_names_vel)
     
+    
+    
     ####################### GET ACCELERATION #######################
     
     def get_acc(data_1, data_2, dt=0.05):
@@ -231,7 +275,7 @@ def process_data():
         ay = (data_2.vy.iloc[0] - data_1.vy)/dt
         return ax, ay
     
-    column_names_acc = ['scene_ID', 'frame_ID', 'object_ID', 'category', 'x', 'y', 'z', 'roll', 'pitch', 'yaw', 'vx', 'vy', 'ax', 'ay']
+    column_names_acc = ['scene_ID', 'frame_ID', 'object_ID', 'category', 'x', 'y', 'z', 'vx', 'vy', 'ax', 'ay']
     data_acc = []
     for row in df_vels.itertuples(index=False):
         if row.frame_ID < df_vels['frame_ID'].max():
@@ -244,7 +288,16 @@ def process_data():
                 data_acc.append(row_as_list + [ax, ay])
     
     df_acc = pd.DataFrame(data_acc, columns=column_names_acc)
+    # df_acc = df_acc.drop(columns=['roll', 'pitch', 'yaw']).copy()
+    
+    ####################### SAVE TO CSV FILE #######################
     df_acc['category'] = df_acc['category'].replace(['CAR', 'BUS', 'BICYCLE'], 'VEHICLE') # For the purpose of the TRAJECTRON++
+    df_acc['x'] = df_acc['x'].astype(float); df_acc['y'] = df_acc['y'].astype(float)
+    df_acc['frame_ID'] = df_acc['frame_ID'].astype(int); df_acc['scene_ID'] = df_acc['scene_ID'].astype(int)
+    df_acc = create_yaw(df_acc)
+    new_order = ['scene_ID', 'frame_ID', 'object_ID', 'category', 'x', 'y', 'z', 'yaw', 'vx', 'vy', 'ax', 'ay']
+    df_acc = df_acc[new_order].copy()
+    df_acc.sort_values(by=['scene_ID', 'frame_ID', 'object_ID'], inplace=True)
     
     ####################### SAVE TO CSV FILE #######################
     csv_file_path = os.path.join(output_path, 'jesse_object_final.csv')

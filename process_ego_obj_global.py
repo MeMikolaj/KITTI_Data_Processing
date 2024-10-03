@@ -607,6 +607,23 @@ def apply_ctrv_model_with_rolling_predictions(df):
         plt.close()  # Close the figure to free memory
 
     
+# Make static objects static
+def ground_static_objects(df, dynamic_obj_list):
+    # Get the unique object IDs not in the provided list
+    unique_object_ids = df['object_ID'].unique()
+    object_ids_to_replicate = [obj_id for obj_id in unique_object_ids if obj_id not in dynamic_obj_list]
+    
+    for obj_id in object_ids_to_replicate:
+        # Find the first occurrence of the object_ID
+        first_appearance = df[df['object_ID'] == obj_id].iloc[0]
+        first_x = first_appearance['x']
+        first_y = first_appearance['y']
+        
+        # Replicate the x and y values for all occurrences of that object_ID
+        df.loc[df['object_ID'] == obj_id, 'x'] = first_x
+        df.loc[df['object_ID'] == obj_id, 'y'] = first_y
+    
+    return df
     
 ################################################################################################################
 # ------------------------------------------------------------------------------------------------------------ #
@@ -729,6 +746,11 @@ def process_data_obj(df_camera_wrong_yaw, create_plots = False):
                 # Get only dynamic agents
                 if folder_name in DYNAMIC_AGENTS:
                     df = df[df['object_ID'].isin(DYNAMIC_AGENTS[folder_name])]
+               
+                # Keep the Static agents    
+                # if folder_name == "0000":
+                #     df = df[~df['object_ID'].isin([3])]
+                #     df = ground_static_objects(df, [1,2])
                     
                 # Plot heading diffs before smoothing
                 if create_plots and folder_name == "0000":
