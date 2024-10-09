@@ -397,7 +397,7 @@ def plot_poses(df, output_path, file_folder="", plot_estimated=False, plot_gt=Fa
 
     for object_id in unique_object_ids:
         # Create a folder for an object
-        object_path = os.path.join(output_path, str(object_id), file_folder)
+        object_path = os.path.join(output_path, str(object_id), file_folder, 'trajectory_plots')
         maybe_makedirs(object_path)
         
         # Filter the DataFrame for the current object id
@@ -464,7 +464,7 @@ def plot_heading_differences(df, output_path, file_folder="", plot_estimated=Fal
     plt.figure(figsize=(12, 6))
     
     # Loop through each object_ID
-    for i, obj_id in enumerate(df['object_id'].unique()):
+    for obj_id in df['object_id'].unique():
         object_path = os.path.join(output_path, str(obj_id), file_folder)
         maybe_makedirs(object_path)
         
@@ -478,7 +478,6 @@ def plot_heading_differences(df, output_path, file_folder="", plot_estimated=Fal
             obj_data['heading_diff'] = np.where(obj_data['heading_diff'] > np.pi,
                                                 2 * np.pi - obj_data['heading_diff'],
                                                 obj_data['heading_diff'])
-            obj_data = obj_data[obj_data['heading_diff'].notna()]
         
         # GT
         if plot_gt:
@@ -504,17 +503,17 @@ def plot_heading_differences(df, output_path, file_folder="", plot_estimated=Fal
             if plot_gt:
                 plt.plot(x_values, obj_data['gt_heading_diff'], label=f'GT: {obj_id}', color='blue')
                 avg_gt_heading_diff = obj_data['gt_heading_diff'].mean()
-                plt.axhline(y=avg_gt_heading_diff, linestyle='--', linewidth=2, label=f'Avg GT Heading Diff {round(avg_gt_heading_diff, 3)}', color='cyan')
+                plt.axhline(y=avg_gt_heading_diff, linestyle='--', linewidth=2, label=f'Avg GT Heading Diff: {round(avg_gt_heading_diff, 3)}', color='cyan')
 
 
-        plt.title(f'Heading Differences, object: {obj_id}')
-        plt.xlabel('Consecutive Frames')
-        plt.ylabel('Heading Difference (radians)')
-        plt.legend()
-        plt.grid()
-        plot_file_path = os.path.join(object_path, f'{obj_id}_heading_diffs.png')
-        plt.savefig(plot_file_path)
-        plt.close()  # Close the figure to free memory
+            plt.title(f'Heading Differences, object: {obj_id}')
+            plt.xlabel('Consecutive Frames')
+            plt.ylabel('Heading Difference (radians)')
+            plt.legend()
+            plt.grid()
+            plot_file_path = os.path.join(object_path, f'{obj_id}_heading_diffs.png')
+            plt.savefig(plot_file_path)
+            plt.close()  # Close the figure to free memory
         
     
 # Plot heading values over time
@@ -531,7 +530,7 @@ def plot_heading_values(df, output_path, file_folder="", plot_estimated=False, p
     plt.figure(figsize=(12, 6))
     
     # Loop through each object_ID
-    for i, obj_id in enumerate(df['object_id'].unique()):
+    for obj_id in df['object_id'].unique():
         object_path = os.path.join(output_path, str(obj_id), file_folder)
         maybe_makedirs(object_path)
         
@@ -544,14 +543,14 @@ def plot_heading_values(df, output_path, file_folder="", plot_estimated=False, p
             if plot_gt:
                 plt.plot(x_values, obj_data['gt_heading'], label=f'GT heading: {obj_id}', color='blue')
 
-        plt.title(f'Heading Values, object: {obj_id}')
-        plt.xlabel('Consecutive Frames')
-        plt.ylabel('Heading Difference (radians)')
-        plt.legend()
-        plt.grid()
-        plot_file_path = os.path.join(object_path, f'{obj_id}_heading_values.png')
-        plt.savefig(plot_file_path)
-        plt.close()  # Close the figure to free memory
+            plt.title(f'Heading Values, object: {obj_id}')
+            plt.xlabel('Consecutive Frames')
+            plt.ylabel('Heading Difference (radians)')
+            plt.legend()
+            plt.grid()
+            plot_file_path = os.path.join(object_path, f'{obj_id}_heading_values.png')
+            plt.savefig(plot_file_path)
+            plt.close()  # Close the figure to free memory
         
 
 
