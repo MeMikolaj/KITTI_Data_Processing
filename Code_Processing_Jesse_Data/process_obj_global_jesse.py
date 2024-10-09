@@ -16,12 +16,13 @@ from typing import Final, List, Dict
 base_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_kitti'
 data_folders = os.listdir(base_path)
 
-output_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed/data'
+output_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed/'
 category_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/raw'
 
-output_path_plots = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed/plots'
 
-def process_data(plot_trajectories=True):
+def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj=True, 
+                 plot_estimated_headings=True, plot_gt_headings=True, plot_together_headings=True,
+                 plot_estimated_values=True, plot_gt_values=True, plot_together_values=True):
     """ Take 3 csv files (camera pose, object pose, object motion) and arguments.
         Change data to XYZ convention, generate plots etc
 
@@ -31,9 +32,23 @@ def process_data(plot_trajectories=True):
     
     print(f"""
           ''''''''''''''''''''''''''''''''''''''''''''\n
-          - Heading the same as previous one if x < 0.1 and y < 0.1\n
+          - Heading the same as previous one if delta_x < 0.1 and delta_y < 0.1\n
           - Agents with missing frames treated as many objects (1 -> 1a, 1b, 1c)\n
-          - Plot Trajectories: {plot_trajectories}\n
+          
+          PLOT TRAJECTORIES
+          - Estimated:                {plot_estimated_traj}\n
+          - Groung-Truth:             {plot_gt_traj}\n
+          - Est and GT together:      {plot_together_traj}\n
+          
+          PLOT HEADINGS DIFFERENCES
+          - Estimated:                {plot_estimated_headings}\n
+          - Groung-Truth:             {plot_gt_headings}\n
+          - Est and GT together:      {plot_together_headings}\n
+          
+          PLOT HEADINGS VALUES
+          - Estimated:                {plot_estimated_values}\n
+          - Groung-Truth:             {plot_gt_values}\n
+          - Est and GT together:      {plot_together_values}\n
           ''''''''''''''''''''''''''''''''''''''''''''
           """)
     
@@ -44,9 +59,9 @@ def process_data(plot_trajectories=True):
         
         # Get dataset name
         dataset_name = folder_name.split('_')[1] # 0000 from kitti_0000 or 0006 from kitti_0006
-
+        
         # Create an output folder
-        maybe_makedirs(output_path +'/' + dataset_name)
+        maybe_makedirs(os.path.join(output_path, dataset_name, 'data'))
         
         # Read camera pose from a file
         camera_pose_path   = os.path.join(base_path, folder_name, 'rgbd_motion_world_backend_camera_pose_log.csv')
@@ -61,22 +76,7 @@ def process_data(plot_trajectories=True):
         df_obj_motion = pd.read_csv(obj_motion_path)
         
         
-        ####################### CAMERA POSE CV TO NORMAL TO CSV FILE #######################
-
-        df_cmr = camera_to_normal_3D(df_cmr_pose, dataset_name) # CV to Normal
-        df_cmr = categ_to_vehicle(df_cmr)                       # Category (bus, car, bike) -> Vehicle
-        df_cmr = set_df_types(df_cmr, include_obj_id=False)     # Casting columns to their type
-        
-
-        df_cmr = create_heading(df=df_cmr, drop_last=False) # Add heading column
-        
-        # Save Data
-        csv_file_path = os.path.join(output_path, dataset_name, 'camera_pose.csv')
-        df_cmr.dropna(inplace=True)
-        df_cmr.to_csv(csv_file_path, index=False)
-        
         ####################### GET OBJECT CATEGORIES #######################
-        
         obj_category_path = os.path.join(category_path + '/' + dataset_name, 'object_category.txt')
         category_dict = {}
         with open(obj_category_path, 'r') as file:
@@ -84,22 +84,40 @@ def process_data(plot_trajectories=True):
                 # Split the line into values
                 values = line.split()
                 category_dict[values[0]] = values[1]
+                    
+                    
+        ####################### PROCESS ESTIMATED and GT DATA #######################
+            
+        ############# CAMERA POSE CV TO NORMAL TO CSV FILE #############
+
+        df_cmr = camera_to_normal_3D(df_cmr_pose, dataset_name) # CV to Normal
+        df_cmr = categ_to_vehicle(df_cmr)                       # Category (bus, car, bike) -> Vehicle
+        df_cmr = set_df_types(df_cmr, include_obj_id=False)     # Casting columns to their type
         
-        ####################### OBJECT POSE CV TO NORMAL #######################
+        df_cmr = create_heading(df=df_cmr, drop_last=False) # Add heading column
+        
+        # Save Data
+        csv_file_path = os.path.join(output_path, dataset_name, 'data', 'camera_pose.csv')
+        df_cmr.dropna(inplace=True)
+        df_cmr.to_csv(csv_file_path, index=False)
+        
+        ############# OBJECT POSE CV TO NORMAL #############
 
         df_obj = object_to_normal_3D(df_obj_pose, category_dict, dataset_name) # CV to Normal
         df_obj = categ_to_vehicle(df_obj)                                      # Category (bus, car, bike) -> Vehicle
         df_obj = set_df_types(df_obj, include_obj_id=True)                     # Casting columns to their type
         
-        # df_obj = create_heading(df=df_obj, drop_last=False)
-
-        # Save Data
-        # csv_file_path = os.path.join(output_path, dataset_name, 'object_pose.csv')
-        # df_obj.to_csv(csv_file_path, index=False)
-
-        # df_obj = df_obj.drop(columns=['heading']).copy()
+        df_obj_save = df_obj
         
-        ####################### OBJECT MOTION INCLUSIVE #######################
+        # Save Data
+        df_obj_save = fix_missing_frames(df_obj_save) 
+        df_obj_save = create_heading(df=df_obj_save, drop_last=False)
+        df_obj_save.dropna(inplace=True)
+        df_obj_save.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
+        csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_poses.csv')
+        df_obj_save.to_csv(csv_file_path, index=False)
+ 
+        ############# OBJECT MOTION INCLUSIVE #############
         
         # Cv to normal
         df_motion_pose = motion_to_normal_3D(df_obj_motion, category_dict, dataset_name) # CV to Normal
@@ -117,20 +135,66 @@ def process_data(plot_trajectories=True):
         df_acc = create_heading(df_acc, drop_last=False)    # Add heading column
         
         # Change the order
-        new_order = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'vx', 'vy', 'ax', 'ay']
+        new_order = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'vx', 'vy', 'ax', 'ay', 'gt_x', 'gt_y', 'gt_z', 'gt_heading', 'gt_vx', 'gt_vy', 'gt_ax', 'gt_ay']
         df_acc = df_acc[new_order].copy()
         df_acc.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
         
         # Save Data
-        csv_file_path = os.path.join(output_path, dataset_name, 'object_pose_motion.csv')
+        csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_pose_motion.csv')
         df_acc.dropna(inplace=True)
         df_acc.to_csv(csv_file_path, index=False)
         
-        if plot_trajectories:
-            plot_poses(df_cmr, os.path.join(output_path_plots, dataset_name)) # Camera
-            plot_poses(df_acc, os.path.join(output_path_plots, dataset_name, 'objects')) # Motion
+        
+        
+        ####################### Plot Trajectories #######################
+        if plot_estimated_traj:
+            plot_poses(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_camera', plot_estimated=True) # Camera
+            plot_poses(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', plot_estimated=True) # Motion
+            plot_poses(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_poses', plot_estimated=True) # Object estimated poses
             
-        # sys.exit()
+        if plot_gt_traj:
+            plot_poses(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_camera', plot_gt=True) # Camera
+            plot_poses(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_objects_motion', plot_gt=True) # Motion
+            plot_poses(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_objects_poses', plot_gt=True) # Object estimated poses
+            
+        if plot_together_traj:
+            plot_poses(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_camera', plot_estimated=True, plot_gt=True) # Camera
+            plot_poses(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_objects_motion', plot_estimated=True, plot_gt=True) # Motion
+            plot_poses(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_objects_poses', plot_estimated=True, plot_gt=True) # Object estimated poses
+            
+            
+        ####################### Plot Heading Differences #######################
+        if plot_estimated_headings:
+            plot_heading_differences(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_camera', plot_estimated=True) # Camera
+            plot_heading_differences(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', plot_estimated=True) # Motion
+            plot_heading_differences(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_poses', plot_estimated=True) # Object estimated poses
+            
+        if plot_gt_headings:
+            plot_heading_differences(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_camera', plot_gt=True) # Camera
+            plot_heading_differences(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_objects_motion', plot_gt=True) # Motion
+            plot_heading_differences(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_objects_poses', plot_gt=True) # Object estimated poses
+            
+        if plot_together_headings:
+            plot_heading_differences(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_camera', plot_estimated=True, plot_gt=True) # Camera
+            plot_heading_differences(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_objects_motion', plot_estimated=True, plot_gt=True) # Motion
+            plot_heading_differences(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_objects_poses', plot_estimated=True, plot_gt=True) # Object estimated poses
+            
+        ####################### Plot Heading Values #######################
+        if plot_estimated_values:
+            plot_heading_values(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_camera', plot_estimated=True) # Camera
+            plot_heading_values(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', plot_estimated=True) # Motion
+            plot_heading_values(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_poses', plot_estimated=True) # Object estimated poses
+            
+        if plot_gt_values:
+            plot_heading_values(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_camera', plot_gt=True) # Camera
+            plot_heading_values(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_objects_motion', plot_gt=True) # Motion
+            plot_heading_values(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_objects_poses', plot_gt=True) # Object estimated poses
+            
+        if plot_together_values:
+            plot_heading_values(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_camera', plot_estimated=True, plot_gt=True) # Camera
+            plot_heading_values(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_objects_motion', plot_estimated=True, plot_gt=True) # Motion
+            plot_heading_values(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_objects_poses', plot_estimated=True, plot_gt=True) # Object estimated poses
+            
         
 if __name__ == '__main__':
     process_data()
