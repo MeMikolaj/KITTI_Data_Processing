@@ -116,14 +116,18 @@ def local_to_global(folder_name, local_values, df_ego, category_dict):
 
 import numpy as np
 
-def create_heading(df, drop_last=True):
-
+def create_heading(df, create_turn_rate=False):
     # Sort the DataFrame by 'scene_id' and 'frame_id'
     df.sort_values(by=['scene_id', 'frame_id'], inplace=True)
     
-    # Initialize the 'heading' column with NaN
+    # Initialize the 'heading' and 'gt_heading' columns with NaN
     df['heading'] = np.nan
     df['gt_heading'] = np.nan
+    
+    if create_turn_rate:
+        dt = 0.05
+        df['turn_rate'] = np.nan
+        df['gt_turn_rate'] = np.nan
 
     # Calculate 'heading' for each unique scene_id and object_id
     for scene_id in df['scene_id'].unique():
@@ -143,38 +147,32 @@ def create_heading(df, drop_last=True):
                 gt_delta_x = obj_df['gt_x'].iloc[i+1] - obj_df['gt_x'].iloc[i]
                 gt_delta_y = obj_df['gt_y'].iloc[i+1] - obj_df['gt_y'].iloc[i]
                 
-                # Check if the changes are less than 0.1
+                # Update heading
                 if abs(delta_x) < 0.1 and abs(delta_y) < 0.1 and i != 0:
-                    # Use the last heading if changes are small
-                    # Use the index from obj_df to find the correct row in df
-                    df.loc[obj_df.index[i], 'heading'] = last_heading
+                    df.loc[obj_df.index[i+1], 'heading'] = last_heading  # Update using i+1
                 else:
-                    # Calculate heading using atan2
                     heading_value = np.arctan2(delta_y, delta_x)
-                    df.loc[obj_df.index[i], 'heading'] = heading_value
+                    df.loc[obj_df.index[i+1], 'heading'] = heading_value
                     last_heading = heading_value  # Update last_heading
                     
-                # Check if the changes are less than 0.1
+                # Update gt_heading
                 if abs(gt_delta_x) < 0.1 and abs(gt_delta_y) < 0.1 and i != 0:
-                    # Use the last heading if changes are small
-                    # Use the index from obj_df to find the correct row in df
-                    df.loc[obj_df.index[i], 'gt_heading'] = gt_last_heading
+                    df.loc[obj_df.index[i+1], 'gt_heading'] = gt_last_heading
                 else:
-                    # Calculate heading using atan2
                     gt_heading_value = np.arctan2(gt_delta_y, gt_delta_x)
-                    df.loc[obj_df.index[i], 'gt_heading'] = gt_heading_value
+                    df.loc[obj_df.index[i+1], 'gt_heading'] = gt_heading_value
                     gt_last_heading = gt_heading_value  # Update last_heading
-
-    # Drop the last values for each object where 'heading' is NaN
-    if drop_last:
-        df.dropna(subset=['heading'], inplace=True)
-        df.dropna(subset=['gt_heading'], inplace=True)
+                    
+            # Calculate turn rates if needed
+            if create_turn_rate:
+                # Calculate turn rate directly on df
+                df.loc[obj_df.index, 'turn_rate'] = df.loc[obj_df.index, 'heading'].diff()
+                df.loc[obj_df.index, 'gt_turn_rate'] = df.loc[obj_df.index, 'gt_heading'].diff()
 
     # Reset the index after dropping rows
     df.reset_index(drop=True, inplace=True)
 
     return df
-
 
 
 #############################################################################################################################
@@ -549,6 +547,92 @@ def plot_heading_values(df, output_path, file_folder="", plot_estimated=False, p
             plt.legend()
             plt.grid()
             plot_file_path = os.path.join(object_path, f'{obj_id}_heading_values.png')
+            plt.savefig(plot_file_path)
+            plt.close()  # Close the figure to free memory
+            
+
+def plot_ctrv_model(df, output_path, file_folder="", vis_hist_used=False):
+    # Parameters
+    dt = 0.05  # Time step
+    prediction_timesteps = 30  # Number of steps to predict (1.5 seconds)
+    max_history_steps = 8  # Number of steps to use for averaging velocity and turn rate
+
+    for obj_id in df['object_id'].unique():
+        object_path = os.path.join(output_path, str(obj_id), file_folder, 'CTRV_predictions')
+        maybe_makedirs(object_path)
+        
+        obj_df = df[df['object_id'] == obj_id].copy()
+        if len(obj_df) < (prediction_timesteps + 2):
+            continue # Cannot compare prediction to what actually will happen
+        
+        # CTRV Model Prediction Loop
+        for i in range(1, len(obj_df)-prediction_timesteps):
+            # i is a current timestep so need to look at a history data before it
+            history_start = 0 if i<max_history_steps else (i - max_history_steps + 1)
+            
+            # Use the last history_steps for the current prediction
+            history_data = obj_df.iloc[history_start:i+1].copy()
+            
+            # current frame
+            curr_frame = obj_df.iloc[i]['frame_id']
+            
+            # Calculate linear velocity
+            history_data['v'] = np.sqrt(history_data['vx']**2 + history_data['vy']**2)
+         
+            # Calculate average vel and turn rate
+            history_vel_mean = history_data['v'].mean()
+            history_turn_rate_mean = history_data['turn_rate'].mean()
+            
+            # Get current coordinates and heading
+            current_x = history_data.loc[history_data['frame_id'] == curr_frame, 'x'].iloc[0]
+            current_y = history_data.loc[history_data['frame_id'] == curr_frame, 'y'].iloc[0]
+            current_heading = history_data.loc[history_data['frame_id'] == curr_frame, 'heading'].iloc[0]
+        
+            # Store predictions for this window
+            predictions = pd.DataFrame(columns=['pred_x', 'pred_y']).astype({'pred_x': 'float', 'pred_y': 'float'})
+
+            # Predict the next steps
+            for t in range(prediction_timesteps):
+                current_x += history_vel_mean * np.cos(current_heading) * dt
+                current_y += history_vel_mean * np.sin(current_heading) * dt
+                current_heading += history_turn_rate_mean * dt
+                
+                # Create a new DataFrame for the new row
+                new_row = pd.DataFrame({'pred_x': [current_x], 'pred_y': [current_y]})
+                # Concatenate the new row to the predictions DataFrame
+                predictions = pd.concat([predictions, new_row], ignore_index=True)
+
+            # Create a plot for the current prediction
+            plt.figure(figsize=(12, 6))
+            
+            # Plot historical data from the beginning up to the current prediction
+            historical_x = obj_df['x'].iloc[:i + 1].values
+            historical_y = obj_df['y'].iloc[:i + 1].values
+            plt.plot(historical_x, historical_y, linestyle='-', label='Past Trajectory', color='darkgray', linewidth=1)
+
+            # Plot future trajectory
+            future_x = obj_df['x'].iloc[i : i + prediction_timesteps].values
+            future_y = obj_df['y'].iloc[i : i + prediction_timesteps].values
+            plt.plot(future_x, future_y, linestyle='-', label='Future Trajectory', color='dimgray', linewidth=1)
+
+            # Plot Considered History
+            if vis_hist_used:
+                hist_x = obj_df['x'].iloc[history_start:i + 1].values
+                hist_y = obj_df['y'].iloc[history_start:i + 1].values
+                plt.plot(hist_x, hist_y, linestyle='-', label='History Used for CTRV', color='lightcoral', linewidth=1) 
+                    
+            # Plot predicted trajectory
+            plt.plot(np.concatenate((np.array([obj_df['x'].iloc[i]]), predictions['pred_x'].values)), np.concatenate((np.array([obj_df['y'].iloc[i]]), predictions['pred_y'].values)), linestyle='--', label='CTRV model', color='red')
+
+            plt.title(f'CTRV Model Prediction for Object ID: {obj_id} at Frame {curr_frame}')
+            plt.xlabel('X Coordinate')
+            plt.ylabel('Y Coordinate')
+            plt.legend()
+            plt.grid()
+            plt.axis('equal')  # Equal aspect ratio to visualize trajectories properly
+        
+            # Save the figure for the current frame
+            plot_file_path = os.path.join(object_path, f'id_{obj_id}_frame_{curr_frame}_CTRV.png')
             plt.savefig(plot_file_path)
             plt.close()  # Close the figure to free memory
         

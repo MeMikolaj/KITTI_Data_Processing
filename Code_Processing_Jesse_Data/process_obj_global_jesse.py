@@ -22,7 +22,8 @@ category_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/raw'
 
 def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj=True, 
                  plot_estimated_headings=True, plot_gt_headings=True, plot_together_headings=True,
-                 plot_estimated_values=True, plot_gt_values=True, plot_together_values=True):
+                 plot_estimated_values=True, plot_gt_values=True, plot_together_values=True,
+                 plot_estimated_CTRV=True,):
     """ Take 3 csv files (camera pose, object pose, object motion) and arguments.
         Change data to XYZ convention, generate plots etc
 
@@ -31,24 +32,27 @@ def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj
     """
     
     print(f"""
-          ''''''''''''''''''''''''''''''''''''''''''''\n
-          - Heading the same as previous one if delta_x < 0.1 and delta_y < 0.1\n
-          - Agents with missing frames treated as many objects (1 -> 1a, 1b, 1c)\n
+          ''''''''''''''''''''''''''''''''''''''''''''
+          - Heading the same as previous one if delta_x < 0.1 and delta_y < 0.1
+          - Agents with missing frames treated as many objects (1 -> 1a, 1b, 1c)
           
           PLOT TRAJECTORIES
-          - Estimated:                {plot_estimated_traj}\n
-          - Groung-Truth:             {plot_gt_traj}\n
-          - Est and GT together:      {plot_together_traj}\n
+          - Estimated:                {plot_estimated_traj}
+          - Groung-Truth:             {plot_gt_traj}
+          - Est and GT together:      {plot_together_traj}
           
           PLOT HEADINGS DIFFERENCES
-          - Estimated:                {plot_estimated_headings}\n
-          - Groung-Truth:             {plot_gt_headings}\n
-          - Est and GT together:      {plot_together_headings}\n
+          - Estimated:                {plot_estimated_headings}
+          - Groung-Truth:             {plot_gt_headings}
+          - Est and GT together:      {plot_together_headings}
           
           PLOT HEADINGS VALUES
-          - Estimated:                {plot_estimated_values}\n
-          - Groung-Truth:             {plot_gt_values}\n
-          - Est and GT together:      {plot_together_values}\n
+          - Estimated:                {plot_estimated_values}
+          - Groung-Truth:             {plot_gt_values}
+          - Est and GT together:      {plot_together_values}
+          
+          PLOT CONSTANT TURN RATE AND VELOCITY
+          - Estimated:                {plot_estimated_CTRV}
           ''''''''''''''''''''''''''''''''''''''''''''
           """)
     
@@ -90,11 +94,11 @@ def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj
             
         ############# CAMERA POSE CV TO NORMAL TO CSV FILE #############
 
-        df_cmr = camera_to_normal_3D(df_cmr_pose, dataset_name) # CV to Normal
-        df_cmr = categ_to_vehicle(df_cmr)                       # Category (bus, car, bike) -> Vehicle
-        df_cmr = set_df_types(df_cmr, include_obj_id=False)     # Casting columns to their type
+        df_cmr = camera_to_normal_3D(df_cmr_pose, dataset_name)   # CV to Normal
+        df_cmr = categ_to_vehicle(df_cmr)                         # Category (bus, car, bike) -> Vehicle
+        df_cmr = set_df_types(df_cmr, include_obj_id=False)       # Casting columns to their type
         
-        df_cmr = create_heading(df=df_cmr, drop_last=False) # Add heading column
+        df_cmr = create_heading(df=df_cmr, create_turn_rate=True) # Add heading column
         
         # Save Data
         csv_file_path = os.path.join(output_path, dataset_name, 'data', 'camera_pose.csv')
@@ -111,7 +115,7 @@ def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj
         
         # Save Data
         df_obj_save = fix_missing_frames(df_obj_save) 
-        df_obj_save = create_heading(df=df_obj_save, drop_last=False)
+        df_obj_save = create_heading(df=df_obj_save, create_turn_rate=True)
         df_obj_save.dropna(inplace=True)
         df_obj_save.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
         csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_poses.csv')
@@ -131,11 +135,11 @@ def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj
         df_acc = set_df_types(df_acc, include_obj_id=True)  # Casting columns to their type
         
         df_acc.dropna(inplace=True)
-        df_acc = fix_missing_frames(df_acc)                 # Update object_id considering missing frames
-        df_acc = create_heading(df_acc, drop_last=False)    # Add heading column
+        df_acc = fix_missing_frames(df_acc)                       # Update object_id considering missing frames
+        df_acc = create_heading(df_acc, create_turn_rate=True)    # Add heading column
         
         # Change the order
-        new_order = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'vx', 'vy', 'ax', 'ay', 'gt_x', 'gt_y', 'gt_z', 'gt_heading', 'gt_vx', 'gt_vy', 'gt_ax', 'gt_ay']
+        new_order = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'vx', 'vy', 'ax', 'ay', 'turn_rate', 'gt_x', 'gt_y', 'gt_z', 'gt_heading', 'gt_vx', 'gt_vy', 'gt_ax', 'gt_ay', 'gt_turn_rate']
         df_acc = df_acc[new_order].copy()
         df_acc.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
         
@@ -194,6 +198,10 @@ def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj
             plot_heading_values(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_camera', plot_estimated=True, plot_gt=True) # Camera
             plot_heading_values(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_objects_motion', plot_estimated=True, plot_gt=True) # Motion
             plot_heading_values(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='full_objects_poses', plot_estimated=True, plot_gt=True) # Object estimated poses
+            
+        ####################### Plot CTRV #######################
+        if plot_estimated_CTRV:
+            plot_ctrv_model(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', vis_hist_used=True) # Motion
             
         
 if __name__ == '__main__':
