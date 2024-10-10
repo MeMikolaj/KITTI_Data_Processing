@@ -25,9 +25,9 @@ from trajdata.dataset_specific.scene_records import FullSceneKittiSceneRecord
 from trajdata.utils import arr_utils
 
 SCENES: Final[List[str]] = [
-    "0001",
+    #"0001",
     "0000",
-    "0020",
+    #"0020",
     #"0002",
     #"0003",
     #"0004",
