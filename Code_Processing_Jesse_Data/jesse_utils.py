@@ -353,7 +353,7 @@ def remove_faulty_objects(df, dataset_name):
     df.reset_index(drop=True, inplace=True)
     return df
 
-
+# a,b,c version
 # Assigns new object ids to data that has missing frames (instead of object_id=1, have 1a, 1b, 1c...)
 def fix_missing_frames(df):
     # Sort the DataFrame by object_id and frame_id
@@ -383,6 +383,37 @@ def fix_missing_frames(df):
     df['object_id'] = new_object_ids
     df.reset_index(drop=True, inplace=True)
     return df
+
+# 1, 1001, 2001, 3001
+# Assigns new object ids to data that has missing frames (instead of object_id=1, have 1a, 1b, 1c...)
+# def fix_missing_frames(df):
+#     # Sort the DataFrame by object_id and frame_id
+#     df = df.sort_values(by=['scene_id', 'object_id', 'frame_id']).reset_index(drop=True)
+
+#     new_object_ids = []
+#     current_mult = 0  # Start with obj_id for the first assignment, then obj_id + 1000*current_mult = (1,2,3,4,5....)
+
+#     # Group by object_id
+#     for object_id, group in df.groupby('object_id'):
+#         last_frame = None  # To track the last frame in the sequence
+
+#         for frame in group['frame_id']:
+#             # Check if there is a gap in the sequence
+#             if last_frame is not None and frame != last_frame + 1:
+#                 # If there's a gap, increment the suffix
+#                 current_mult += 1  # Increase multiplication
+#             # Assign new object_id
+#             new_id = object_id + 1000*current_mult
+#             new_object_ids.append(new_id)
+#             last_frame = frame
+
+#         # Reset the suffix after processing each object_id
+#         current_mult = 0
+
+#     # Add the new object_id column to the original DataFrame
+#     df['object_id'] = new_object_ids
+#     df.reset_index(drop=True, inplace=True)
+#     return df
 
 #############################################################################################################################
 ###############################################         Plotting Utils         ##############################################
@@ -551,21 +582,24 @@ def plot_heading_values(df, output_path, file_folder="", plot_estimated=False, p
             plt.close()  # Close the figure to free memory
             
 
-def plot_ctrv_model(df, output_path, file_folder="", vis_hist_used=False):
+def plot_ctrv_model(df, output_path, file_folder="", vis_hist_used=False, save_to_csv=True):
     # Parameters
     dt = 0.05  # Time step
     prediction_timesteps = 30  # Number of steps to predict (1.5 seconds)
     max_history_steps = 8  # Number of steps to use for averaging velocity and turn rate
 
+    dataset_id = df['scene_id'].iloc[0]
+
     for obj_id in df['object_id'].unique():
         object_path = os.path.join(output_path, str(obj_id), file_folder, 'CTRV_predictions')
+        
         maybe_makedirs(object_path)
         
         obj_df = df[df['object_id'] == obj_id].copy()
         if len(obj_df) < (prediction_timesteps + 2):
             continue # Cannot compare prediction to what actually will happen
         
-        # CTRV Model Prediction Loop
+        # CTRV Model Prediction Loop - iterating over frames
         for i in range(1, len(obj_df)-prediction_timesteps):
             # i is a current timestep so need to look at a history data before it
             history_start = 0 if i<max_history_steps else (i - max_history_steps + 1)
@@ -624,6 +658,38 @@ def plot_ctrv_model(df, output_path, file_folder="", vis_hist_used=False):
             # Plot predicted trajectory
             plt.plot(np.concatenate((np.array([obj_df['x'].iloc[i]]), predictions['pred_x'].values)), np.concatenate((np.array([obj_df['y'].iloc[i]]), predictions['pred_y'].values)), linestyle='--', label='CTRV model', color='red')
 
+            # Save to CSV file:
+            if save_to_csv and dataset_id == 0:
+                csv_output_path = os.path.join('/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed/', '0000', 'data', 'CTRV_data', str(obj_id))
+                maybe_makedirs(csv_output_path)
+                csv_path = os.path.join(csv_output_path, f'frame_{curr_frame}.csv')
+                data = []
+                
+                # Append historical data (includes current state)
+                for x, y in zip(hist_x, hist_y):
+                    data.append(['History', x, y])
+                    
+                # # Append current state
+                # data.append(['Current', obj_df['x'].iloc[i + 1], obj_df['y'].iloc[i + 1]])
+                
+                # Append future predictions
+                for x, y in zip(predictions['pred_x'].values, predictions['pred_y'].values):
+                    data.append(['Future', x, y])
+                    
+                # Create a DataFrame and save to CSV
+                df_ctrv = pd.DataFrame(data, columns=['Type', 'x', 'y'])
+                df_ctrv['object_id'] = obj_id
+                df_ctrv['frame_id'] = curr_frame + prediction_timesteps - (len(df_ctrv) - 1 - df_ctrv.index)
+                
+                # Add "ground-truth" data
+                df_ctrv_merged = pd.merge(df_ctrv, obj_df[['object_id', 'frame_id', 'x', 'y']], 
+                                    on=['object_id', 'frame_id'], 
+                                    how='left',
+                                    suffixes=('', '_visual'))
+                
+                df_ctrv_merged.to_csv(csv_path, index=False)
+                
+                
             plt.title(f'CTRV Model Prediction for Object ID: {obj_id} at Frame {curr_frame}')
             plt.xlabel('X Coordinate')
             plt.ylabel('Y Coordinate')

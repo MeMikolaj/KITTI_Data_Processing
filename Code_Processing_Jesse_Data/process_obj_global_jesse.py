@@ -20,9 +20,9 @@ output_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed/'
 category_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/raw'
 
 
-def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj=True, 
-                 plot_estimated_headings=True, plot_gt_headings=True, plot_together_headings=True,
-                 plot_estimated_values=True, plot_gt_values=True, plot_together_values=True,
+def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_traj=False, 
+                 plot_estimated_headings=False, plot_gt_headings=False, plot_together_headings=False,
+                 plot_estimated_values=False, plot_gt_values=False, plot_together_values=False,
                  plot_estimated_CTRV=True,):
     """ Take 3 csv files (camera pose, object pose, object motion) and arguments.
         Change data to XYZ convention, generate plots etc
@@ -63,6 +63,10 @@ def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj
         
         # Get dataset name
         dataset_name = folder_name.split('_')[1] # 0000 from kitti_0000 or 0006 from kitti_0006
+        
+        # Only Process 0000
+        if dataset_name != "0000":
+            continue
         
         # Create an output folder
         maybe_makedirs(os.path.join(output_path, dataset_name, 'data'))
@@ -146,6 +150,11 @@ def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj
         # Save Data
         csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_pose_motion.csv')
         df_acc.dropna(inplace=True)
+        # first_frame = df_acc['frame_id'].min()
+        # df_acc['frame_id'] = df_acc['frame_id'].astype(int) - df_acc['frame_id'].min()
+        # txt_file_path = os.path.join(output_path, dataset_name, 'data', 'min_frame_subs.txt')
+        # with open(txt_file_path, 'w') as file:
+        #     file.write(str(first_frame))
         df_acc.to_csv(csv_file_path, index=False)
         
         
@@ -201,7 +210,7 @@ def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj
             
         ####################### Plot CTRV #######################
         if plot_estimated_CTRV:
-            plot_ctrv_model(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', vis_hist_used=True) # Motion
+            plot_ctrv_model(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', vis_hist_used=True, save_to_csv=True) # Motion
             
         
 if __name__ == '__main__':
