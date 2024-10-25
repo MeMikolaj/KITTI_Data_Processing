@@ -68,22 +68,22 @@ def plot_predictions(df_ctrv, df_trajectron, output_path, frame_id, object_name,
     
     
     # Draw where the object is now, in the future and according to the prediction
-    object2 = plt.Circle((x_gt_hist[-1], y_gt_hist[-1]), 0.2, color='dimgray', label=f'Object\'s current location', fill=True, linewidth=2)
+    object2 = plt.Circle((x_gt_hist[-1], y_gt_hist[-1]), 0.2, color='orange', label=f'Current location', fill=True, linewidth=2)
     plt.gca().add_artist(object2)
     
     # Draw Last predicted point form the gt data
-    object = plt.Circle((x_gt_fut_all[ph], y_gt_fut_all[ph]), 0.2, color='red', label=f'Object\'s future location after {ph} steps', fill=True, linewidth=2)
+    object = plt.Circle((x_gt_fut_all[ph], y_gt_fut_all[ph]), 0.2, color='red', label=f'Future location after {ph} steps', fill=True, linewidth=2)
     plt.gca().add_artist(object)
     
     # Trajectron Last predicted point - drawing a circle
-    object1 = plt.Circle((x_trajectron_pred[ph-1], y_trajectron_pred[ph-1]), 0.2, color='blueviolet', label=f'Object\'s predicted location after {ph} steps', fill=True, linewidth=2)
+    object1 = plt.Circle((x_trajectron_pred[ph-1], y_trajectron_pred[ph-1]), 0.2, color='blueviolet', label=f'Predicted location after {ph} steps', fill=True, linewidth=2)
     plt.gca().add_artist(object1)
     
     
-    plt.title(f'Predictions of object: {object_name}, at frame: {frame_id}, dataset: KITTI-{dataset_name}, ph: {ph} steps, h: up to {h} steps, dt: {dt}')
+    #plt.title(f'Predictions of object: {object_name}, at frame: {frame_id}, dataset: KITTI-{dataset_name}, ph: {ph} steps, h: up to {h} steps, dt: {dt}')
     plt.xlabel('X [m]')
     plt.ylabel('Y [m]')
-    plt.legend(loc='lower left')
+    plt.legend(loc='lower left', fontsize=15)
     plt.axis('equal')
     plt.grid()
     
@@ -91,8 +91,10 @@ def plot_predictions(df_ctrv, df_trajectron, output_path, frame_id, object_name,
     plt.xlim(27, 71)
     plt.ylim(2.5, 20)
     
-    plot_file_path = os.path.join(output_path, f"frame_{frame_id}")
-    plt.savefig(plot_file_path)
+    #plot_file_path = os.path.join(output_path, f"frame_{frame_id}")
+    #plt.savefig(plot_file_path)
+    plot_file_path = os.path.join(output_path, f"frame_{frame_id}.pdf")
+    plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
     plt.close()  # Close the figure to free memory
     
     # Computer ADE and FDE
