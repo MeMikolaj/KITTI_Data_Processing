@@ -20,9 +20,9 @@ output_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed/'
 category_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/raw'
 
 
-def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_traj=False, 
-                 plot_estimated_headings=False, plot_gt_headings=False, plot_together_headings=False,
-                 plot_estimated_values=False, plot_gt_values=False, plot_together_values=False,
+def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj=True, 
+                 plot_estimated_headings=True, plot_gt_headings=True, plot_together_headings=True,
+                 plot_estimated_values=True, plot_gt_values=True, plot_together_values=True,
                  plot_estimated_CTRV=True,):
     """ Take 3 csv files (camera pose, object pose, object motion) and arguments.
         Change data to XYZ convention, generate plots etc
@@ -114,6 +114,14 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         df_obj = object_to_normal_3D(df_obj_pose, category_dict, dataset_name) # CV to Normal
         df_obj = categ_to_vehicle(df_obj)                                      # Category (bus, car, bike) -> Vehicle
         df_obj = set_df_types(df_obj, include_obj_id=True)                     # Casting columns to their type
+        
+        # Add noise to check how trajectron behaves
+        # for index, row in df_obj.iterrows():
+        #     noise_x = np.random.normal(0, 0.04)
+        #     noise_y = np.random.normal(0, 0.04)
+        #     df_obj.at[index, 'x'] += noise_x
+        #     df_obj.at[index, 'y'] += noise_y
+    
         
         df_obj_save = df_obj
         

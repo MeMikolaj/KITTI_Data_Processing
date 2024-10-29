@@ -53,7 +53,7 @@ TEST_SCENES: Final[List[str]] = [
 
 KITTI_DT: Final[float] = 0.05
 
-class KittiDataset(RawDataset):
+class VisualKittiDataset(RawDataset):
 
     ################################## DONE & TESTED ##################################
     def compute_metadata(self, env_name: str, data_dir: str) -> EnvMetadata:
@@ -91,20 +91,26 @@ class KittiDataset(RawDataset):
             print(f"Loading {self.name} dataset...", flush=True)
 
         self.dataset_obj: Dict[str, pd.DataFrame] = dict()
-        base_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/raw' # BASE PATH TO GLOBAL DATA HERE
+        base_path1 = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed' # BASE PATH to datasets
+        base_path2 = '/data/object_pose_motion.csv' # Rest of the path to data inside the dataset
         
         # TRAIN & VAL DATA
         for scene_name in TRAIN_SCENES:
             
-            scene_path = os.path.join(base_path, scene_name, (scene_name + '.csv'))
+            scene_path = os.path.join(base_path1, scene_name, base_path2)
             df_input = pd.read_csv(scene_path, index_col=False)
 
-            data = df_input[['frame_id', 'object_id', 'x', 'y']].rename(
+            data = df_input[['frame_id', 'object_id', 'x', 'y', 'vx', 'vy', 'ax', 'ay', 'heading']].rename(
                 columns={
                     'frame_id': 'frame_id',
                     'object_id': 'track_id',
                     'x': 'pos_x',
-                    'y': 'pos_y'
+                    'y': 'pos_y',
+                    'vx': 'vx',
+                    'vy': 'vy',
+                    'ax': 'ax',
+                    'ay': 'ay',
+                    'heading': 'heading'
                 }
             )
             
@@ -127,15 +133,20 @@ class KittiDataset(RawDataset):
         # TEST DATA
         for scene_name in TEST_SCENES:
             
-            scene_path = os.path.join(base_path, scene_name, (scene_name + '.csv'))
+            scene_path = os.path.join(base_path1, scene_name, (scene_name + '.csv'))
             df_input = pd.read_csv(scene_path, index_col=False)
 
-            data = df_input[['frame_id', 'object_id', 'x', 'y']].rename(
+            data = df_input[['frame_id', 'object_id', 'x', 'y', 'vx', 'vy', 'ax', 'ay', 'heading']].rename(
                 columns={
                     'frame_id': 'frame_id',
                     'object_id': 'track_id',
                     'x': 'pos_x',
-                    'y': 'pos_y'
+                    'y': 'pos_y',
+                    'vx': 'vx',
+                    'vy': 'vy',
+                    'ax': 'ax',
+                    'ay': 'ay',
+                    'heading': 'heading'
                 }
             )
             
@@ -253,6 +264,11 @@ class KittiDataset(RawDataset):
                 "track_id": "agent_id",
                 "pos_x": "x",
                 "pos_y": "y",
+                'vx': 'vx',
+                'vy': 'vy',
+                'ax': 'ax',
+                'ay': 'ay',
+                'heading': 'heading',
             },
             inplace=True,
         )
@@ -271,20 +287,19 @@ class KittiDataset(RawDataset):
         scene_data["z"] = np.zeros_like(scene_data["x"])
 
         ### Calculating agent velocities
-        scene_data[["vx", "vy"]] = (
-            arr_utils.agent_aware_diff(scene_data[["x", "y"]].to_numpy(), agent_ids)
-            / KITTI_DT
-        )
+        # scene_data[["vx", "vy"]] = (
+        #     arr_utils.agent_aware_diff(scene_data[["x", "y"]].to_numpy(), agent_ids)
+        #     / KITTI_DT
+        # )
 
         ### Calculating agent accelerations
-        scene_data[["ax", "ay"]] = (
-            arr_utils.agent_aware_diff(scene_data[["vx", "vy"]].to_numpy(), agent_ids)
-            / KITTI_DT
-        )
+        # scene_data[["ax", "ay"]] = (
+        #     arr_utils.agent_aware_diff(scene_data[["vx", "vy"]].to_numpy(), agent_ids)
+        #     / KITTI_DT
+        # )
 
-        # This is likely to be very noisy... Unfortunately, ETH/UCY only
-        # provide center of mass data.
-        scene_data["heading"] = np.arctan2(scene_data["vy"], scene_data["vx"])
+        # This is likely to be very noisy if only the center of mass is provided in data.
+        # scene_data["heading"] = np.arctan2(scene_data["vy"], scene_data["vx"])
 
         agent_list: List[AgentMetadata] = list()
         agent_presence: List[List[AgentMetadata]] = [

@@ -586,7 +586,7 @@ def plot_ctrv_model(df, output_path, file_folder="", vis_hist_used=False, save_t
     # Parameters
     dt = 0.05  # Time step
     prediction_timesteps = 30  # Number of steps to predict (1.5 seconds)
-    max_history_steps = 8  # Number of steps to use for averaging velocity and turn rate
+    max_history_steps = 4  # Number of steps to use for averaging velocity and turn rate
 
     dataset_id = df['scene_id'].iloc[0]
 

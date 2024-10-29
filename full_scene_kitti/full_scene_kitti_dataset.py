@@ -92,7 +92,7 @@ class FullSceneKittiDataset(RawDataset):
                     'y': 'pos_y'
                 }
             )
-            
+
             data["frame_id"] = pd.to_numeric(data["frame_id"], downcast="integer")
             data["frame_id"] = (data["frame_id"] - data["frame_id"].min())
             self.dataset_obj[scene_name] = data

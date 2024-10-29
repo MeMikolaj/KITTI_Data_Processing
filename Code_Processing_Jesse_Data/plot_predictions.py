@@ -83,16 +83,16 @@ def plot_predictions(df_ctrv, df_trajectron, output_path, frame_id, object_name,
     #plt.title(f'Predictions of object: {object_name}, at frame: {frame_id}, dataset: KITTI-{dataset_name}, ph: {ph} steps, h: up to {h} steps, dt: {dt}')
     plt.xlabel('X [m]')
     plt.ylabel('Y [m]')
-    plt.legend(loc='lower left', fontsize=15)
+    #plt.legend(loc='lower left', fontsize=15)
     plt.axis('equal')
     plt.grid()
     
     # Set axis limits
-    plt.xlim(27, 71)
-    plt.ylim(2.5, 20)
+    # plt.xlim(27, 71)
+    # plt.ylim(2.5, 20)
     
-    #plot_file_path = os.path.join(output_path, f"frame_{frame_id}")
-    #plt.savefig(plot_file_path)
+    plot_file_path = os.path.join(output_path, f"frame_{frame_id}")
+    plt.savefig(plot_file_path)
     plot_file_path = os.path.join(output_path, f"frame_{frame_id}.pdf")
     plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
     plt.close()  # Close the figure to free memory

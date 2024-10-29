@@ -21,51 +21,35 @@ from trajdata.data_structures.environment import EnvMetadata
 from trajdata.data_structures.scene_metadata import Scene, SceneMetadata
 from trajdata.data_structures.scene_tag import SceneTag
 from trajdata.dataset_specific.raw_dataset import RawDataset
-from trajdata.dataset_specific.scene_records import KittiSceneRecord
+from trajdata.dataset_specific.scene_records import VisualFullSceneKittiSceneRecord
 from trajdata.utils import arr_utils
 
-TRAIN_SCENES: Final[List[str]] = [
-    "0001",
-    "0002",
-    "0003",
-    "0004",
-    "0005",
-    "0006",
-    "0018",
-    "0020"
+SCENES: Final[List[str]] = [
+    # "0001",
+    # "0002",
+    # "0003",
+    # "0004",
+    # "0005",
+    # # "0006",
+    # "0018",
+    # "0020",
+    "0000",
 ]
 
-TRAINVAL_FRAME_SPLITS: Final[Dict[str, int]] = {
-    # subtracting the frame_id of the first frame (it is not always 0)
-    "0001": 390 - 330,
-    "0002": 140,
-    "0003": 90,
-    "0004": 210,
-    "0005": 180,
-    "0006": 160,  # => train: [start, 355), val: [355, end)
-    "0018": 210 - 25,
-    "0020": 630,
-}
-
-TEST_SCENES: Final[List[str]] = [
-    "0000"
-]
 
 KITTI_DT: Final[float] = 0.05
 
-class KittiDataset(RawDataset):
+class VisualFullSceneKittiDataset(RawDataset):
 
     ################################## DONE & TESTED ##################################
     def compute_metadata(self, env_name: str, data_dir: str) -> EnvMetadata:
         scene_splits: Dict[str, List[str]] = {
-            "train": [name + "_train" for name in TRAIN_SCENES],
-            "val": [name + "_val" for name in TRAIN_SCENES],
-            "test": [name + "_test" for name in TEST_SCENES]
+            "test": [name for name in SCENES],
         }
 
         dataset_parts: List[Tuple[str, ...]] = [
-            ("train", "val", "test"),
-            ("germany",),
+            ("test",),
+            ("poland",),
         ]
 
         # Inverting the dict from above, associating every scene with its data split.
@@ -91,57 +75,32 @@ class KittiDataset(RawDataset):
             print(f"Loading {self.name} dataset...", flush=True)
 
         self.dataset_obj: Dict[str, pd.DataFrame] = dict()
-        base_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/raw' # BASE PATH TO GLOBAL DATA HERE
+        base_path1 = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed' # BASE PATH to datasets
+        base_path2 = 'data/object_pose_motion.csv' # Rest of the path to data inside the dataset
         
-        # TRAIN & VAL DATA
-        for scene_name in TRAIN_SCENES:
+        # "TEST" DATA
+        for scene_name in SCENES:
             
-            scene_path = os.path.join(base_path, scene_name, (scene_name + '.csv'))
+            scene_path = os.path.join(base_path1, scene_name, base_path2)
             df_input = pd.read_csv(scene_path, index_col=False)
 
-            data = df_input[['frame_id', 'object_id', 'x', 'y']].rename(
+            data = df_input[['frame_id', 'object_id', 'x', 'y', 'vx', 'vy', 'ax', 'ay', 'heading']].rename(
                 columns={
                     'frame_id': 'frame_id',
                     'object_id': 'track_id',
                     'x': 'pos_x',
-                    'y': 'pos_y'
+                    'y': 'pos_y',
+                    'vx': 'vx',
+                    'vy': 'vy',
+                    'ax': 'ax',
+                    'ay': 'ay',
+                    'heading': 'heading'
                 }
             )
             
             data["frame_id"] = pd.to_numeric(data["frame_id"], downcast="integer")
             data["frame_id"] = (data["frame_id"] - data["frame_id"].min())
-
-            # self.dataset_obj[scene_name] = data
-            self.dataset_obj[scene_name + "_train"] = data[
-                data["frame_id"] < TRAINVAL_FRAME_SPLITS[scene_name]
-            ]
-
-            # Creating a copy because we have to fix the frame_id values (to ensure they start from 0).
-            self.dataset_obj[scene_name + "_val"] = data[
-                data["frame_id"] >= TRAINVAL_FRAME_SPLITS[scene_name]
-            ].copy()
-            self.dataset_obj[scene_name + "_val"]["frame_id"] -= TRAINVAL_FRAME_SPLITS[
-                scene_name
-            ]
-            
-        # TEST DATA
-        for scene_name in TEST_SCENES:
-            
-            scene_path = os.path.join(base_path, scene_name, (scene_name + '.csv'))
-            df_input = pd.read_csv(scene_path, index_col=False)
-
-            data = df_input[['frame_id', 'object_id', 'x', 'y']].rename(
-                columns={
-                    'frame_id': 'frame_id',
-                    'object_id': 'track_id',
-                    'x': 'pos_x',
-                    'y': 'pos_y'
-                }
-            )
-            
-            data["frame_id"] = pd.to_numeric(data["frame_id"], downcast="integer")
-            data["frame_id"] = (data["frame_id"] - data["frame_id"].min())
-            self.dataset_obj[scene_name + "_test"] = data
+            self.dataset_obj[scene_name] = data
 
 
     ################################## DONE & TESTED ##################################
@@ -151,11 +110,11 @@ class KittiDataset(RawDataset):
         scene_desc_contains: Optional[List[str]],
         env_cache: EnvCache,
     ) -> List[SceneMetadata]:
-        all_scenes_list: List[KittiSceneRecord] = list()
+        all_scenes_list: List[VisualFullSceneKittiSceneRecord] = list()
 
         scenes_list: List[SceneMetadata] = list()
         for idx, (scene_name, scene_df) in enumerate(self.dataset_obj.items()):
-            scene_location: str = "germany"
+            scene_location: str = "poland"
 
             # print("...... ...... ...... Scene split map:")
             # print(self.metadata.scene_split_map)
@@ -165,7 +124,7 @@ class KittiDataset(RawDataset):
 
             # Saving all scene records for later caching.
             all_scenes_list.append(
-                KittiSceneRecord(scene_name, scene_location, scene_length, scene_split, idx)
+                VisualFullSceneKittiSceneRecord(scene_name, scene_location, scene_length, scene_split, idx)
             )
             # if (
             #     scene_location in scene_tag
@@ -192,7 +151,7 @@ class KittiDataset(RawDataset):
         scene_desc_contains: Optional[List[str]],
         env_cache: EnvCache,
     ) -> List[Scene]:
-        all_scenes_list: List[KittiSceneRecord] = env_cache.load_env_scenes_list(self.name)
+        all_scenes_list: List[VisualFullSceneKittiSceneRecord] = env_cache.load_env_scenes_list(self.name)
 
         scenes_list: List[Scene] = list()
         for scene_record in all_scenes_list:
@@ -227,7 +186,7 @@ class KittiDataset(RawDataset):
         _, scene_name, _, data_idx = scene_info
 
         scene_data: pd.DataFrame = self.dataset_obj[scene_name]
-        scene_location: str = "germany"
+        scene_location: str = "poland"
         scene_split: str = self.metadata.scene_split_map[scene_name]
         scene_length: int = scene_data["frame_id"].max().item() + 1
 
@@ -253,13 +212,18 @@ class KittiDataset(RawDataset):
                 "track_id": "agent_id",
                 "pos_x": "x",
                 "pos_y": "y",
+                'vx': 'vx',
+                'vy': 'vy',
+                'ax': 'ax',
+                'ay': 'ay',
+                'heading': 'heading',
             },
             inplace=True,
         )
 
-        scene_data["agent_id"] = pd.to_numeric(
-            scene_data["agent_id"], downcast="integer"
-        )
+        # scene_data["agent_id"] = pd.to_numeric(
+        #     scene_data["agent_id"], downcast="integer"
+        # )
 
         scene_data.set_index(["agent_id", "scene_ts"], inplace=True)
         scene_data.sort_index(inplace=True)
@@ -271,20 +235,19 @@ class KittiDataset(RawDataset):
         scene_data["z"] = np.zeros_like(scene_data["x"])
 
         ### Calculating agent velocities
-        scene_data[["vx", "vy"]] = (
-            arr_utils.agent_aware_diff(scene_data[["x", "y"]].to_numpy(), agent_ids)
-            / KITTI_DT
-        )
+        # scene_data[["vx", "vy"]] = (
+        #     arr_utils.agent_aware_diff(scene_data[["x", "y"]].to_numpy(), agent_ids)
+        #     / KITTI_DT
+        # )
 
         ### Calculating agent accelerations
-        scene_data[["ax", "ay"]] = (
-            arr_utils.agent_aware_diff(scene_data[["vx", "vy"]].to_numpy(), agent_ids)
-            / KITTI_DT
-        )
+        # scene_data[["ax", "ay"]] = (
+        #     arr_utils.agent_aware_diff(scene_data[["vx", "vy"]].to_numpy(), agent_ids)
+        #     / KITTI_DT
+        # )
 
-        # This is likely to be very noisy... Unfortunately, ETH/UCY only
-        # provide center of mass data.
-        scene_data["heading"] = np.arctan2(scene_data["vy"], scene_data["vx"])
+        # This is likely to be very noisy if only the center of mass is provided in data.
+        # scene_data["heading"] = np.arctan2(scene_data["vy"], scene_data["vx"])
 
         agent_list: List[AgentMetadata] = list()
         agent_presence: List[List[AgentMetadata]] = [
@@ -308,15 +271,15 @@ class KittiDataset(RawDataset):
             # print(f"Agent ID is: {agent_id}")
             # print("-----")
             if frames.shape[0] < last_frame - start_frame + 1:
-                raise ValueError("ETH/UCY indeed can have missing frames :(")
+                raise ValueError(f"Kitti has missing frames. Scene: {scene.name}, Agent: {agent_id}")
 
             agent_metadata = AgentMetadata(
                 name=str(agent_id),
-                agent_type=AgentType.VEHICLE,
+                agent_type=AgentType.VEHICLE,   # In the future add Category!
                 first_timestep=start_frame,
                 last_timestep=last_frame,
                 # These values are as ballpark as it gets...
-                extent=FixedExtent(length=4.084, width=1.730, height=1.562),
+                extent=FixedExtent(length=4.084, width=1.730, height=1.562), # Avg car dim
             )
 
             agent_list.append(agent_metadata)
