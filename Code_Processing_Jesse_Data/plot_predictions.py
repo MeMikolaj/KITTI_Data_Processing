@@ -10,7 +10,60 @@ from jesse_utils import *
 ###############################################################################################  
 ###############################################################################################  
 
-def plot_predictions(df_ctrv, df_trajectron, output_path, frame_id, object_name, dataset_name, ph, h, dt, ade_ctrv, ade_trajectron, fde_ctrv, fde_trajectron, include_ctrv=True):
+from cycler import cycler
+from typing import List
+
+def prop_cycle() -> List[str]:
+    return ["#0072B2", "#E69F00", "#009E73", "#CC79A7",
+            "#56B4E9", "#D55E00", "#F0E442", "#000000"]
+    
+def startup_plotting(font_size=14, line_width=1.5, output_dpi=600, tex_backend=True):
+    """Edited from https://github.com/nackjaylor/formatting_tips-tricks/
+    """
+
+    if tex_backend:
+        try:
+            plt.rcParams.update({
+                    "text.usetex": True,
+                    "font.family": "serif",
+                    "font.serif": ["Computer Modern Roman"],
+                    })
+        except:
+            print("WARNING: LaTeX backend not configured properly. Not using.")
+            plt.rcParams.update({"font.family": "serif",
+                    "font.serif": ["Computer Modern Roman"],
+                        })
+
+    # Default settings
+    plt.rcParams.update({
+        "lines.linewidth": line_width,
+
+        "axes.grid" : True,
+        "axes.grid.which": "major",
+        "axes.linewidth": 0.5,
+        "axes.prop_cycle": cycler("color", prop_cycle()),
+
+        "errorbar.capsize": 2.5,
+
+        "grid.linewidth": 0.25,
+        "grid.alpha": 0.5,
+
+        "legend.framealpha": 0.7,
+        "legend.edgecolor": [1,1,1],
+
+        "savefig.dpi": output_dpi,
+        "savefig.format": 'pdf'
+    })
+
+    # Change default font sizes.
+    plt.rc('font', size=font_size)
+    plt.rc('axes', titlesize=font_size)
+    plt.rc('axes', labelsize=font_size)
+    plt.rc('xtick', labelsize=0.8*font_size)
+    plt.rc('ytick', labelsize=0.8*font_size)
+    plt.rc('legend', fontsize=0.8*font_size)
+    
+def plot_predictions(df_ctrv, df_trajectron, output_path, frame_id, object_name, dataset_name, ph, h, dt, ade_ctrv, ade_trajectron, fde_ctrv, fde_trajectron, include_ctrv=True, save=True):
     
     # CTRV History and Future
     x_ctrv_hist = df_ctrv.loc[df_ctrv['Type'] == 'History', 'x'].values
@@ -83,18 +136,19 @@ def plot_predictions(df_ctrv, df_trajectron, output_path, frame_id, object_name,
     #plt.title(f'Predictions of object: {object_name}, at frame: {frame_id}, dataset: KITTI-{dataset_name}, ph: {ph} steps, h: up to {h} steps, dt: {dt}')
     plt.xlabel('X [m]')
     plt.ylabel('Y [m]')
-    #plt.legend(loc='lower left', fontsize=15)
+    plt.legend(loc='lower left')
     plt.axis('equal')
     plt.grid()
     
     # Set axis limits
-    # plt.xlim(27, 71)
-    # plt.ylim(2.5, 20)
+    plt.xlim(27, 71)
+    plt.ylim(2.5, 20)
     
-    plot_file_path = os.path.join(output_path, f"frame_{frame_id}")
-    plt.savefig(plot_file_path)
-    plot_file_path = os.path.join(output_path, f"frame_{frame_id}.pdf")
-    plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
+    if save:
+        plot_file_path = os.path.join(output_path, f"frame_{frame_id}.png")
+        plt.savefig(plot_file_path, format="png", bbox_inches="tight")
+        plot_file_path = os.path.join(output_path, f"frame_{frame_id}.pdf")
+        plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
     plt.close()  # Close the figure to free memory
     
     # Computer ADE and FDE
@@ -122,6 +176,7 @@ base_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed'
 datasets = ['0000']
 
 def process():
+    startup_plotting()
     ade_ctrv = 0; ade_trajectron = 0; fde_ctrv = 0; fde_trajectron = 0; data_counter=0
     for dataset_name in datasets:
         general_path = os.path.join(base_path, dataset_name)
@@ -157,7 +212,7 @@ def process():
                 
                 # Plot predictions - 1. CTRV and Trajectron,  2. Trjaectron only
                 #results = plot_predictions(ctrv_df, trajectron_df, plots_path, frame_id, object_name_folder, dataset_name, ph=30, h=4, dt=0.05, ade_ctrv=ade_ctrv, ade_trajectron=ade_trajectron, fde_ctrv=fde_ctrv, fde_trajectron=fde_trajectron, include_ctrv=True)
-                results = plot_predictions(ctrv_df, trajectron_df, plots_path, frame_id, object_name_folder, dataset_name, ph=30, h=4, dt=0.05, ade_ctrv=ade_ctrv, ade_trajectron=ade_trajectron, fde_ctrv=fde_ctrv, fde_trajectron=fde_trajectron, include_ctrv=False)
+                results = plot_predictions(ctrv_df, trajectron_df, plots_path, frame_id, object_name_folder, dataset_name, ph=30, h=4, dt=0.05, ade_ctrv=ade_ctrv, ade_trajectron=ade_trajectron, fde_ctrv=fde_ctrv, fde_trajectron=fde_trajectron, include_ctrv=False, save=False)
                 
                 # Add errors
                 ade_ctrv       += results[0]

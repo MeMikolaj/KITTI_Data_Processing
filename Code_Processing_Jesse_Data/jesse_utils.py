@@ -602,7 +602,7 @@ def plot_ctrv_model(df, output_path, file_folder="", vis_hist_used=False, save_t
         # CTRV Model Prediction Loop - iterating over frames
         for i in range(1, len(obj_df)-prediction_timesteps):
             # i is a current timestep so need to look at a history data before it
-            history_start = 0 if i<max_history_steps else (i - max_history_steps + 1)
+            history_start = 0 if i<max_history_steps else (i - max_history_steps) # Without +1 because we use up to 4 steps = up to 5 states! 
             
             # Use the last history_steps for the current prediction
             history_data = obj_df.iloc[history_start:i+1].copy()
