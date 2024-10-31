@@ -23,7 +23,7 @@ category_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/raw'
 def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj=True, 
                  plot_estimated_headings=True, plot_gt_headings=True, plot_together_headings=True,
                  plot_estimated_values=True, plot_gt_values=True, plot_together_values=True,
-                 plot_estimated_CTRV=True,):
+                 plot_estimated_CTRV=True, plot_tron=True):
     """ Take 3 csv files (camera pose, object pose, object motion) and arguments.
         Change data to XYZ convention, generate plots etc
 
@@ -53,6 +53,10 @@ def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj
           
           PLOT CONSTANT TURN RATE AND VELOCITY
           - Estimated:                {plot_estimated_CTRV}
+
+          PLOT FOR TRON PAPER (heading, (x, y), velocity, acceleration)
+          - plot_tron:                {plot_tron}
+          
           ''''''''''''''''''''''''''''''''''''''''''''
           """)
     
@@ -221,6 +225,10 @@ def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj
             plot_ctrv_model(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', vis_hist_used=True, save_to_csv=True) # Motion
             
         
+        ####################### Plot Heading, (x,y), velocity, acceleration for TRON #######################
+        if plot_tron:
+            plots_for_tron(df_acc, output_path=os.path.join(output_path, dataset_name, 'plots'), file_folder="TRON_paper", xy=True, heading=True, velocity=True, acceleration=True)
+
 if __name__ == '__main__':
     process_data()
     

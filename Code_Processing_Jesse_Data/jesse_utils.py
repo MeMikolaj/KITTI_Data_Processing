@@ -543,7 +543,106 @@ def plot_heading_differences(df, output_path, file_folder="", plot_estimated=Fal
             plot_file_path = os.path.join(object_path, f'{obj_id}_heading_diffs.png')
             plt.savefig(plot_file_path)
             plt.close()  # Close the figure to free memory
+    
+def plots_for_tron(df, output_path, file_folder="", xy=True, heading=True, velocity=True, acceleration=True):
+
+    # TRON Specific plotting type
+    startup_plotting()
+    
+    # Loop through each object
+    for obj_id in df['object_id'].unique():
+        object_path = os.path.join(output_path, str(obj_id), file_folder)
+        maybe_makedirs(object_path)
         
+        obj_data = df[df['object_id'] == obj_id].copy()
+        
+        # Getting Values
+        if heading:
+            obj_data['heading_diff'] = obj_data['heading'].diff()  # Calculate difference
+            obj_data['heading_diff'] = obj_data['heading_diff'].mod(2 * np.pi)  # Ensure difference is within [0, 2π]
+            # Adjust to ensure non-negative difference
+            obj_data['heading_diff'] = np.where(obj_data['heading_diff'] > np.pi,
+                                                2 * np.pi - obj_data['heading_diff'],
+                                                obj_data['heading_diff'])
+
+        if velocity:
+            obj_data['v'] = np.sqrt(obj_data['vx']**2 + obj_data['vy']**2)
+            obj_data['vel_diff'] = obj_data['v'].diff().abs()  # Calculate difference and ensure it is non negative
+
+        if acceleration:
+            obj_data['a'] = np.sqrt(obj_data['ax']**2 + obj_data['ay']**2)
+            obj_data['acc_diff'] = obj_data['a'].diff().abs()  # Calculate difference and ensure it is non negative
+
+        if xy:
+            obj_data['xy'] = np.sqrt(obj_data['x']**2 + obj_data['y']**2)
+            obj_data['xy_diff'] = obj_data['xy'].diff().abs()  # Calculate difference and ensure it is non negative
+
+        # Not nan values
+        if heading:
+            obj_data = obj_data[obj_data['heading_diff'].notna()]
+        if velocity:
+            obj_data = obj_data[obj_data['vel_diff'].notna()]
+        if acceleration:
+            obj_data = obj_data[obj_data['acc_diff'].notna()]
+        if xy:
+            obj_data = obj_data[obj_data['xy'].notna()]
+        
+        
+        # Store relevant columns
+        if not obj_data.empty:
+            x_values = np.arange(len(obj_data)) # Number of frames
+            if heading:
+                # plt.figure(figsize=(12, 6)) We want it flat
+                avg_heading_diff = obj_data['heading_diff'].mean()
+                plt.plot(x_values, obj_data['heading_diff'], label=f'Heading Diff. Mean:  {round(avg_heading_diff, 4)}', color='plum')
+                plt.title(f'Heading Differences')
+                plt.xlabel('Consecutive Frames')
+                plt.ylabel('Heading Difference [radians]')
+                plt.legend()
+                plt.grid()
+                plot_file_path = os.path.join(object_path, f'{obj_id}_heading_diffs.pdf')
+                plt.savefig(plot_file_path)
+                plt.close()  # Close the figure to free memory
+                
+            if velocity:
+                # plt.figure(figsize=(12, 6)) We want it flat
+                avg_vel_diff = obj_data['vel_diff'].mean()
+                plt.plot(x_values, obj_data['vel_diff'], label=f'Vell Diff. Mean:  {round(avg_vel_diff, 4)}', color='plum')
+                plt.title(f'Velocity Differences')
+                plt.xlabel('Consecutive Frames')
+                plt.ylabel('Velocity Difference [m/s]')
+                plt.legend()
+                plt.grid()
+                plot_file_path = os.path.join(object_path, f'{obj_id}_vel_diffs.pdf')
+                plt.savefig(plot_file_path)
+                plt.close()  # Close the figure to free memory
+
+            if acceleration:
+                # plt.figure(figsize=(12, 6)) We want it flat
+                avg_acc_diff = obj_data['acc_diff'].mean()
+                plt.plot(x_values, obj_data['acc_diff'], label=f'Acc Diff. Mean:  {round(avg_acc_diff, 4)}', color='plum')
+                plt.title(f'Acceleration Differences')
+                plt.xlabel('Consecutive Frames')
+                plt.ylabel('Acceleration Difference [m^2/s]')
+                plt.legend()
+                plt.grid()
+                plot_file_path = os.path.join(object_path, f'{obj_id}_heading_diffs.pdf')
+                plt.savefig(plot_file_path)
+                plt.close()  # Close the figure to free memory
+            
+            if xy:
+                # plt.figure(figsize=(12, 6)) We want it flat
+                avg_xy_diff = obj_data['xy'].mean()
+                plt.plot(x_values, obj_data['xy'], label=f'XY Diff. Mean:  {round(avg_xy_diff, 4)}', color='plum')
+                plt.title(f'Euclidean distance on xy Differences')
+                plt.xlabel('Consecutive Frames')
+                plt.ylabel('Position Distance Difference (radians)')
+                plt.legend()
+                plt.grid()
+                plot_file_path = os.path.join(object_path, f'{obj_id}_xy_diffs.pdf')
+                plt.savefig(plot_file_path)
+                plt.close()  # Close the figure to free memory
+
     
 # Plot heading values over time
 def plot_heading_values(df, output_path, file_folder="", plot_estimated=False, plot_gt=False):
@@ -721,3 +820,66 @@ def maybe_makedirs(path_to_create):
     except OSError:
         if not os.path.isdir(path_to_create):
             raise
+
+
+
+
+
+
+
+#############################################################################################################################
+######################################        LaTeX Plotting Utils for TRON Paper         ###################################
+#############################################################################################################################
+
+from cycler import cycler
+from typing import List
+
+def prop_cycle() -> List[str]:
+    return ["#0072B2", "#E69F00", "#009E73", "#CC79A7",
+            "#56B4E9", "#D55E00", "#F0E442", "#000000"]
+    
+def startup_plotting(font_size=14, line_width=1.5, output_dpi=600, tex_backend=True):
+    """Edited from https://github.com/nackjaylor/formatting_tips-tricks/
+    """
+
+    if tex_backend:
+        try:
+            plt.rcParams.update({
+                    "text.usetex": True,
+                    "font.family": "serif",
+                    "font.serif": ["Computer Modern Roman"],
+                    })
+        except:
+            print("WARNING: LaTeX backend not configured properly. Not using.")
+            plt.rcParams.update({"font.family": "serif",
+                    "font.serif": ["Computer Modern Roman"],
+                        })
+
+    # Default settings
+    plt.rcParams.update({
+        "lines.linewidth": line_width,
+
+        "axes.grid" : True,
+        "axes.grid.which": "major",
+        "axes.linewidth": 0.5,
+        "axes.prop_cycle": cycler("color", prop_cycle()),
+
+        "errorbar.capsize": 2.5,
+
+        "grid.linewidth": 0.25,
+        "grid.alpha": 0.5,
+
+        "legend.framealpha": 0.7,
+        "legend.edgecolor": [1,1,1],
+
+        "savefig.dpi": output_dpi,
+        "savefig.format": 'pdf'
+    })
+
+    # Change default font sizes.
+    plt.rc('font', size=font_size)
+    plt.rc('axes', titlesize=font_size)
+    plt.rc('axes', labelsize=font_size)
+    plt.rc('xtick', labelsize=0.8*font_size)
+    plt.rc('ytick', labelsize=0.8*font_size)
+    plt.rc('legend', fontsize=0.8*font_size)
