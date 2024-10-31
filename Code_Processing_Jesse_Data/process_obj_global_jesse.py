@@ -23,7 +23,7 @@ category_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/raw'
 def process_data(plot_estimated_traj=True, plot_gt_traj=True, plot_together_traj=True, 
                  plot_estimated_headings=True, plot_gt_headings=True, plot_together_headings=True,
                  plot_estimated_values=True, plot_gt_values=True, plot_together_values=True,
-                 plot_estimated_CTRV=True, plot_tron=True):
+                 plot_estimated_CTRV=True, plot_tron=False):
     """ Take 3 csv files (camera pose, object pose, object motion) and arguments.
         Change data to XYZ convention, generate plots etc
 

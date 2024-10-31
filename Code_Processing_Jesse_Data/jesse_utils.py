@@ -544,6 +544,7 @@ def plot_heading_differences(df, output_path, file_folder="", plot_estimated=Fal
             plt.savefig(plot_file_path)
             plt.close()  # Close the figure to free memory
     
+# Plotting (x,y), heading, v, a for TRON paper
 def plots_for_tron(df, output_path, file_folder="", xy=True, heading=True, velocity=True, acceleration=True):
 
     # TRON Specific plotting type
@@ -623,17 +624,17 @@ def plots_for_tron(df, output_path, file_folder="", xy=True, heading=True, veloc
                 plt.plot(x_values, obj_data['acc_diff'], label=f'Acc Diff. Mean:  {round(avg_acc_diff, 4)}', color='plum')
                 plt.title(f'Acceleration Differences')
                 plt.xlabel('Consecutive Frames')
-                plt.ylabel('Acceleration Difference [m^2/s]')
+                plt.ylabel('Acceleration Difference [m\\textsuperscript{2}/s]')
                 plt.legend()
                 plt.grid()
-                plot_file_path = os.path.join(object_path, f'{obj_id}_heading_diffs.pdf')
+                plot_file_path = os.path.join(object_path, f'{obj_id}_acc_diffs.pdf')
                 plt.savefig(plot_file_path)
                 plt.close()  # Close the figure to free memory
             
             if xy:
                 # plt.figure(figsize=(12, 6)) We want it flat
-                avg_xy_diff = obj_data['xy'].mean()
-                plt.plot(x_values, obj_data['xy'], label=f'XY Diff. Mean:  {round(avg_xy_diff, 4)}', color='plum')
+                avg_xy_diff = obj_data['xy_diff'].mean()
+                plt.plot(x_values, obj_data['xy_diff'], label=f'XY Diff. Mean:  {round(avg_xy_diff, 4)}', color='plum')
                 plt.title(f'Euclidean distance on xy Differences')
                 plt.xlabel('Consecutive Frames')
                 plt.ylabel('Position Distance Difference (radians)')
