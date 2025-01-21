@@ -90,6 +90,10 @@ def cv_to_normal(data, mode, ret_rotation=False):
         gt_yaw, gt_pitch, gt_roll = gt_euler_angles
         
         to_return = np.concatenate([[data.frame_id, data.object_id], est_translation_vector, np.array([roll, pitch, yaw]), gt_translation_vector, np.array([gt_roll, gt_pitch, gt_yaw])])
+        # print(est_translation_vector)
+        # print("---")
+        # print(gt_translation_vector)
+        # print("****************")
     elif mode == "object":
         to_return = np.concatenate([[data.frame_id, data.object_id], est_translation_vector, gt_translation_vector])
     else:
@@ -166,8 +170,8 @@ def create_heading(df, create_turn_rate=False):
             # Calculate turn rates if needed
             if create_turn_rate:
                 # Calculate turn rate directly on df
-                df.loc[obj_df.index, 'turn_rate'] = df.loc[obj_df.index, 'heading'].diff()
-                df.loc[obj_df.index, 'gt_turn_rate'] = df.loc[obj_df.index, 'gt_heading'].diff()
+                df.loc[obj_df.index, 'turn_rate'] = df.loc[obj_df.index, 'heading'].diff()/dt
+                df.loc[obj_df.index, 'gt_turn_rate'] = df.loc[obj_df.index, 'gt_heading'].diff()/dt
 
     # Reset the index after dropping rows
     df.reset_index(drop=True, inplace=True)
@@ -196,11 +200,11 @@ def camera_to_normal_3D(df, folder_name):
 
 # Object df in CV format to XYZ covention
 def object_to_normal_3D(df, category_dict, folder_name):
-    column_names_obj = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'gt_x', 'gt_y', 'gt_z']
+    column_names_obj = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'roll', 'pitch', 'yaw', 'gt_x', 'gt_y', 'gt_z', 'gt_roll', 'gt_pitch', 'gt_yaw']
     data_obj = []
 
     for row in df.itertuples(index=True):
-        normal_values = cv_to_normal(row, mode="object")
+        normal_values = cv_to_normal(row, mode="object", ret_rotation=True)
         data_entry = [folder_name] + normal_values
         data_entry.insert(3, category_dict[str(int(normal_values[1]))])
         data_obj.append(data_entry)
@@ -222,6 +226,7 @@ def motion_to_normal_3D(df, category_dict, dataset_name):
         data_motion.append(data_entry)
     
     df_motion_pose = pd.DataFrame(data_motion, columns=column_names_obj)
+    
     return df_motion_pose
 
 
@@ -353,6 +358,230 @@ def remove_faulty_objects(df, dataset_name):
     df.reset_index(drop=True, inplace=True)
     return df
 
+
+def get_pose_using_motion(pose_row, motion_row):
+    
+    # Extract the translation vector from pose
+    pose_t = np.array([
+        pose_row['x'],
+        pose_row['y'],
+        pose_row['z']
+    ], dtype=np.float64)
+    
+    gt_pose_t = np.array([
+        pose_row['gt_x'],
+        pose_row['gt_y'],
+        pose_row['gt_z']
+    ], dtype=np.float64)
+
+    # Extract the translation vector from motion
+    motion_t = np.array([
+        motion_row['x'],
+        motion_row['y'],
+        motion_row['z']
+    ], dtype=np.float64)
+    
+    gt_motion_t = np.array([
+        motion_row['gt_x'],
+        motion_row['gt_y'],
+        motion_row['gt_z']
+    ], dtype=np.float64)
+    
+    # Construct the rotation matrix
+    pose_r = R.from_euler('xyz', [pose_row['roll'], pose_row['pitch'], pose_row['yaw']]).as_matrix()
+    gt_pose_r = R.from_euler('xyz', [pose_row['gt_roll'], pose_row['gt_pitch'], pose_row['gt_yaw']]).as_matrix()
+
+    # Construct the rotation matrix
+    motion_r = R.from_euler('xyz', [motion_row['roll'], motion_row['pitch'], motion_row['yaw']]).as_matrix()
+    gt_motion_r = R.from_euler('xyz', [motion_row['gt_roll'], motion_row['gt_pitch'], motion_row['gt_yaw']]).as_matrix()
+
+    motion_H = np.eye(4, dtype=np.float64)
+    motion_H[0:3, 0:3] = motion_r
+    motion_H[0:3, 3] = motion_t
+    
+    gt_motion_H = np.eye(4, dtype=np.float64)
+    gt_motion_H[0:3, 0:3] = gt_motion_r
+    gt_motion_H[0:3, 3] = gt_motion_t
+    
+    # Pose
+    pose_H = np.eye(4, dtype=np.float64)
+    pose_H[0:3, 0:3] = pose_r
+    pose_H[0:3, 3] = pose_t
+    
+    gt_pose_H = np.eye(4, dtype=np.float64)
+    gt_pose_H[0:3, 0:3] = gt_pose_r
+    gt_pose_H[0:3, 3] = gt_pose_t
+    
+    # Calculate new pose
+    new_L = motion_H @ pose_H
+    gt_new_L = gt_motion_H @ gt_pose_H
+    
+    rotation_matrix = new_L[:3, :3]
+    gt_rotation_matrix = gt_new_L[:3, :3]
+    
+    rotation = R.from_matrix(rotation_matrix)
+    euler_angles = rotation.as_euler('xyz')
+    
+    gt_rotation = R.from_matrix(gt_rotation_matrix)
+    gt_euler_angles = gt_rotation.as_euler('xyz')
+    
+    
+    # Extract new data
+    return new_L[0][3], new_L[1][3], new_L[2][3], gt_new_L[0][3], gt_new_L[1][3], gt_new_L[2][3], euler_angles[0], euler_angles[1], euler_angles[2], gt_euler_angles[0], gt_euler_angles[1], gt_euler_angles[2]
+    
+    
+    
+    
+def recalculate_pose_using_motion(df_obj, df_motion):
+    # Sort the DataFrame by object_id and frame_id
+    df_obj = df_obj.sort_values(by=['scene_id', 'object_id', 'frame_id']).reset_index(drop=True)
+    df_motion = df_motion.sort_values(by=['scene_id', 'object_id', 'frame_id']).reset_index(drop=True)
+    
+    # Create an empty list to store the new rows
+    new_rows = []
+    flag = False
+    last_frame = 0
+    
+    # Iterate over each unique object_id
+    for object_id in df_obj['object_id'].unique():
+        # Filter the dataframe for the current object_id
+        object_df = df_obj[df_obj['object_id'] == object_id]
+        motion_df = df_motion[df_motion['object_id'] == object_id]
+        
+        # Get the unique frame_ids for this object
+        frame_ids = object_df['frame_id'].values
+        
+        
+        
+        # Check for gaps in frame_ids
+        for i in range(len(frame_ids) - 1):
+            start_frame = frame_ids[i]
+            end_frame = frame_ids[i + 1]
+            
+            
+            new_rows.append(object_df[object_df['frame_id'] == start_frame].iloc[0].to_dict())
+            # If there is a gap between consecutive frame_ids
+            if end_frame - start_frame > 1:
+                flag = True
+                last_frame = start_frame
+                break
+            
+        if flag:
+            flag = False
+            
+            # Get the start row
+            current_pose = object_df[object_df['frame_id'] == last_frame].iloc[0]
+            
+            
+            for z in range(last_frame, int(motion_df.iloc[-1]['frame_id'])):
+                
+                next_motion = motion_df[motion_df['frame_id'] == z+1].iloc[0]
+                # Calculate next pose
+                next_pose_data = get_pose_using_motion(current_pose, next_motion)
+                
+                # Create new row
+                
+                new_row = {
+                        'scene_id': current_pose['scene_id'],
+                        'object_id': object_id,
+                        'frame_id': int(z+1),
+                        'category': current_pose['category'],
+                        'x': next_pose_data[0],
+                        'y': next_pose_data[1],
+                        'z': next_pose_data[2],
+                        'roll': next_pose_data[6],
+                        'pitch': next_pose_data[7],
+                        'yaw': next_pose_data[8],
+                        'gt_x': next_pose_data[3],
+                        'gt_y': next_pose_data[4],
+                        'gt_z': next_pose_data[5],
+                        'gt_roll': next_pose_data[9],
+                        'gt_pitch': next_pose_data[10],
+                        'gt_yaw': next_pose_data[11] 
+                    }
+                #print(new_row)
+                
+                # Add new row to a df
+                new_rows.append(new_row)
+                
+                current_pose = new_row
+    
+    # Create a new DataFrame with the new rows
+    new_df = pd.DataFrame(new_rows)
+    
+    columns_to_drop = ['roll', 'pitch', 'yaw', 'gt_roll', 'gt_pitch', 'gt_yaw']
+    new_df = new_df.drop(columns=columns_to_drop, errors='ignore')
+    
+    # Sort the new dataframe by object_id and frame_id
+    new_df = new_df.sort_values(by=['scene_id', 'frame_id', 'object_id']).reset_index(drop=True)
+    
+    return new_df
+
+
+def replicate_missing_motion_frames(df):
+    # Sort the DataFrame by object_id and frame_id
+    df = df.sort_values(by=['scene_id', 'object_id', 'frame_id']).reset_index(drop=True)
+    
+    # Create an empty list to store the new rows
+    new_rows = []
+    
+    # Iterate over each unique object_id
+    for object_id in df['object_id'].unique():
+        # Filter the dataframe for the current object_id
+        object_df = df[df['object_id'] == object_id]
+        
+        # Get the unique frame_ids for this object
+        frame_ids = object_df['frame_id'].values
+        
+        # Check for gaps in frame_ids
+        for i in range(len(frame_ids) - 1):
+            start_frame = frame_ids[i]
+            end_frame = frame_ids[i + 1]
+            
+            # If there is a gap between consecutive frame_ids
+            if end_frame - start_frame > 1:
+                # Get the start and end row data
+                start_row = object_df[object_df['frame_id'] == start_frame].iloc[0]
+                end_row = object_df[object_df['frame_id'] == end_frame].iloc[0]
+                # Number of missing frames
+                num_missing_frames = end_frame - start_frame - 1
+                
+                # Interpolate between start and end frame
+                for j in range(1, int(num_missing_frames) + 1):
+                    interpolated_frame_id = start_frame + j
+                    interpolated_row = {
+                        'scene_id': start_row['scene_id'],
+                        'frame_id': interpolated_frame_id,
+                        'object_id': object_id,
+                        'category': start_row['category'],
+                        'x': start_row['x'] + j/(int(num_missing_frames) + 1) * (end_row['x'] - start_row['x']),
+                        'y': start_row['y'] + j/(int(num_missing_frames) + 1) * (end_row['y'] - start_row['y']),
+                        'z': start_row['z'] + j/(int(num_missing_frames) + 1) * (end_row['z'] - start_row['z']),
+                        'roll': start_row['roll'] + j/(int(num_missing_frames) + 1) * (end_row['roll'] - start_row['roll']),
+                        'pitch': start_row['pitch'] + j/(int(num_missing_frames) + 1) * (end_row['pitch'] - start_row['pitch']),
+                        'yaw': start_row['yaw'] + j/(int(num_missing_frames) + 1) * (end_row['yaw'] - start_row['yaw']),
+                        'gt_x': start_row['gt_x'] + j/(int(num_missing_frames) + 1) * (end_row['gt_x'] - start_row['gt_x']),
+                        'gt_y': start_row['gt_y'] + j/(int(num_missing_frames) + 1) * (end_row['gt_y'] - start_row['gt_y']),
+                        'gt_z': start_row['gt_z'] + j/(int(num_missing_frames) + 1) * (end_row['gt_z'] - start_row['gt_z']),
+                        'gt_roll': start_row['gt_roll'] + j/(int(num_missing_frames) + 1) * (end_row['gt_roll'] - start_row['gt_roll']),
+                        'gt_pitch': start_row['gt_pitch'] + j/(int(num_missing_frames) + 1) * (end_row['gt_pitch'] - start_row['gt_pitch']),
+                        'gt_yaw': start_row['gt_yaw'] + j/(int(num_missing_frames) + 1) * (end_row['gt_yaw'] - start_row['gt_yaw'])
+                    }
+                    # Append interpolated row
+                    new_rows.append(interpolated_row)
+        
+        # Add the original rows to the new_rows list
+        new_rows.extend(object_df.to_dict(orient='records'))
+    
+    # Create a new DataFrame with the original and interpolated rows
+    new_df = pd.DataFrame(new_rows)
+    
+
+    # Sort the new dataframe by object_id and frame_id
+    new_df = new_df.sort_values(by=['scene_id', 'object_id', 'frame_id']).reset_index(drop=True)
+    return new_df
+
+
 # a,b,c version
 # Assigns new object ids to data that has missing frames (instead of object_id=1, have 1a, 1b, 1c...)
 def fix_missing_frames(df):
@@ -438,11 +667,13 @@ def plot_poses(df, output_path, file_folder="", plot_estimated=False, plot_gt=Fa
         # Extract coordinates and heading
         x = object_data['x'].values
         y = object_data['y'].values
-        gt_x = object_data['gt_x'].values
-        gt_y = object_data['gt_y'].values
+        if plot_gt:
+            gt_x = object_data['gt_x'].values
+            gt_y = object_data['gt_y'].values
         if plot_arrows:
             heading = object_data['heading'].values
-            gt_heading = object_data['gt_heading'].values
+            if plot_gt:
+                gt_heading = object_data['gt_heading'].values
 
         for i in range(len(x)):
             # Initialize the plot for the current frame
@@ -459,7 +690,7 @@ def plot_poses(df, output_path, file_folder="", plot_estimated=False, plot_gt=Fa
                 for j in range(i + 1):
                     if plot_estimated:
                         plt.arrow(x[j], y[j], 0.5 * np.cos(heading[j]), 0.5 * np.sin(heading[j]),
-                                head_width=0.15, head_length=0.15, fc='orange', ec='orange', alpha=0.5)
+                                head_width=0.15, head_length=0.15, fc='purple', ec='purple', alpha=0.5)
                     if plot_gt:
                         plt.arrow(gt_x[j], gt_y[j], 0.5 * np.cos(gt_heading[j]), 0.5 * np.sin(gt_heading[j]),
                                 head_width=0.15, head_length=0.15, fc='red', ec='red', alpha=0.5)
@@ -477,7 +708,56 @@ def plot_poses(df, output_path, file_folder="", plot_estimated=False, plot_gt=Fa
             plt.savefig(plot_file_path)
             plt.close()  # Close the figure to free memory
             
+
+
+# Plot Euclidean Distance Poses
+def plot_eucd_poses(df, output_path, file_folder="", plot_estimated=False, plot_gt=False,  plot_arrows=True):
+    
+    if plot_estimated:
+        if 'x' not in df.columns:
+            raise ValueError("The DataFrame must contain 'x' column.")
+    if plot_gt:
+        if 'gt_x' not in df.columns:
+            raise ValueError("The DataFrame must contain 'gt_x' column.")
+
+    # Plotting
+    plt.figure(figsize=(12, 6))
+    
+    # Loop through each object_ID
+    for obj_id in df['object_id'].unique():
+        object_path = os.path.join(output_path, str(obj_id), file_folder)
+        maybe_makedirs(object_path)
+        
+        obj_data = df[df['object_id'] == obj_id].copy()
+        
+        if not obj_data.empty:
+            x_values = np.arange(len(obj_data))
+            if plot_estimated:
+                obj_data['euc_d'] = np.sqrt(obj_data['x']**2 + obj_data['y']**2)
+                obj_data['euc_d_diff'] = obj_data['euc_d'].diff()  # Calculate difference
+                plt.plot(x_values, obj_data['euc_d_diff'], label=f'Euclidean distance diff: {obj_id}', color='navy')
+
+                
+            if plot_gt:
+                obj_data['gt_euc_d'] = np.sqrt(obj_data['gt_x']**2 + obj_data['gt_y']**2)
+                obj_data['gt_euc_d_diff'] = obj_data['gt_euc_d'].diff()  # Calculate difference
+                plt.plot(x_values, obj_data['gt_euc_d_diff'], label=f'GT Euclidean distance diff: {obj_id}', color='orchid')
             
+
+            plt.title(f'Euclidean distance of consecutive (x, y) states, object: {obj_id}')
+            plt.xlabel('Consecutive Frames')
+            plt.ylabel('Euclidean Distance (m)')
+            plt.legend()
+            plt.grid()
+            if plot_estimated:
+                plot_file_path = os.path.join(object_path, f'{obj_id}_xy_euc_distance.png')
+            else:
+                plot_file_path = os.path.join(object_path, f'gt_{obj_id}_xy_euc_distance.png')
+            plt.savefig(plot_file_path)
+            plt.close()  # Close the figure to free memory
+            
+            
+                     
 
 # Plot heading difference
 def plot_heading_differences(df, output_path, file_folder="", plot_estimated=False, plot_gt=False):
@@ -674,12 +954,60 @@ def plot_heading_values(df, output_path, file_folder="", plot_estimated=False, p
 
             plt.title(f'Heading Values, object: {obj_id}')
             plt.xlabel('Consecutive Frames')
-            plt.ylabel('Heading Difference (radians)')
+            plt.ylabel('Heading Values (radians)')
             plt.legend()
             plt.grid()
             plot_file_path = os.path.join(object_path, f'{obj_id}_heading_values.png')
             plt.savefig(plot_file_path)
             plt.close()  # Close the figure to free memory
+            
+
+# Plot Velocity values over time
+def plot_velocity_values(df, output_path, file_folder="", plot_estimated=False, plot_gt=False):
+
+    if plot_estimated:
+        if 'vx' not in df.columns:
+            raise ValueError("The DataFrame must contain 'vx' and 'vy' columns.")
+    if plot_gt:
+        if 'gt_vx' not in df.columns:
+            raise ValueError("The DataFrame must contain 'gt_vx' and 'gt_vy' columns.")
+
+    # Plotting
+    plt.figure(figsize=(12, 6))
+    
+    # Loop through each object_ID
+    for obj_id in df['object_id'].unique():
+        object_path = os.path.join(output_path, str(obj_id), file_folder)
+        maybe_makedirs(object_path)
+        
+        obj_data = df[df['object_id'] == obj_id].copy()
+        
+        if not obj_data.empty:
+            x_values = np.arange(len(obj_data))
+            if plot_estimated:
+                plt.plot(x_values, obj_data['vx'], label=f'Estimated vx: {obj_id}', color='navy')
+                plt.plot(x_values, obj_data['vy'], label=f'Estimated vy: {obj_id}', color='darkorchid')
+                # Plot Velocity
+                v = np.sqrt(obj_data['vx']**2 + obj_data['vy']**2)
+                plt.plot(x_values, v, label=f'Estimated v: {obj_id}', color='palevioletred')
+                
+            if plot_gt:
+                plt.plot(x_values, obj_data['gt_vx'], label=f'GT vx: {obj_id}', color='crimson')
+                plt.plot(x_values, obj_data['gt_vy'], label=f'GT vy: {obj_id}', color='indigo')
+                # Plot Velocity
+                gt_v = np.sqrt(obj_data['gt_vx']**2 + obj_data['gt_vy']**2)
+                plt.plot(x_values, gt_v, label=f'GT v: {obj_id}', color='fuchsia')
+            
+
+            plt.title(f'Velocity Values, object: {obj_id}')
+            plt.xlabel('Consecutive Frames')
+            plt.ylabel('Velocity Value (m/s)')
+            plt.legend()
+            plt.grid()
+            plot_file_path = os.path.join(object_path, f'{obj_id}_velocity_values.png')
+            plt.savefig(plot_file_path)
+            plt.close()  # Close the figure to free memory
+            
             
 
 def plot_ctrv_model(df, output_path, file_folder="", vis_hist_used=False, save_to_csv=True):
