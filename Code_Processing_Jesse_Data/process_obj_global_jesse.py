@@ -11,6 +11,7 @@ import pandas as pd
 from scipy.spatial.transform import Rotation as R
 from jesse_utils import *
 from typing import Final, List, Dict
+from kalman_filter import NonlinearKinematicBicycle
 
 
 base_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_kitti'
@@ -21,10 +22,10 @@ category_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/raw'
 
 
 def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_traj=False, 
-                 plot_estimated_headings=True, plot_gt_headings=True, plot_together_headings=False,
-                 plot_estimated_values=True, plot_gt_values=True, plot_together_values=False,
-                 plot_estimated_velocity=True, plot_gt_velocity=True, plot_together_velocity=False,
-                 plot_estimated_CTRV=False, plot_tron=False, plot_xy_pose=True):
+                 plot_estimated_headings=False, plot_gt_headings=False, plot_together_headings=False,
+                 plot_estimated_values=False, plot_gt_values=False, plot_together_values=False,
+                 plot_estimated_velocity=False, plot_gt_velocity=False, plot_together_velocity=False,
+                 plot_estimated_CTRV=False, plot_tron=False, plot_xy_pose=False):
     """ Take 3 csv files (camera pose, object pose, object motion) and arguments.
         Change data to XYZ convention, generate plots etc
 
@@ -122,7 +123,7 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         df_cmr = categ_to_vehicle(df_cmr)                         # Category (bus, car, bike) -> Vehicle
         df_cmr = set_df_types(df_cmr, include_obj_id=False)       # Casting columns to their type
         
-        df_cmr = create_heading(df=df_cmr, create_turn_rate=True) # Add heading column
+        df_cmr = create_heading(df=df_cmr, create_turn_rate=False) # Add heading column
         
         # Save Data
         csv_file_path = os.path.join(output_path, dataset_name, 'data', 'camera_pose.csv')
@@ -160,8 +161,8 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         # Save Data
         df_obj_save = df_obj
         df_obj_save = fix_missing_frames(df_obj_save) 
-        df_obj_save = create_heading(df=df_obj_save, create_turn_rate=True)
-        df_obj_save.dropna(inplace=True)
+        df_obj_save = create_heading(df=df_obj_save, create_turn_rate=False)
+        #df_obj_save.dropna(inplace=True)
         df_obj_save.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
         csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_poses.csv')
         df_obj_save.to_csv(csv_file_path, index=False)
@@ -169,29 +170,19 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         
         # Get Velocity and Acceleration from motion
         df_acc = add_vel_acc(df_obj, df_motion_pose)        # Vel and Acc
+        df_acc.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
         
         # Improve the data
         df_acc = categ_to_vehicle(df_acc)                   # Category (bus, car, bike) -> Vehicle
         df_acc = set_df_types(df_acc, include_obj_id=True)  # Casting columns to their type
-        
-        df_acc.dropna(inplace=True)
-        df_acc = fix_missing_frames(df_acc)                       # Update object_id considering missing frames
-        df_acc = create_heading(df_acc, create_turn_rate=True)    # Add heading column
-        
+
+        #df_acc.dropna(inplace=True)
+        df_acc = fix_missing_frames(df_acc)                     # Update object_id considering missing frames
+        df_acc = create_heading(df_acc, create_turn_rate=False)    # Add heading column
         # Change the order
-        new_order = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'vx', 'vy', 'ax', 'ay', 'turn_rate', 'gt_x', 'gt_y', 'gt_z', 'gt_heading', 'gt_vx', 'gt_vy', 'gt_ax', 'gt_ay', 'gt_turn_rate']
+        new_order = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'vx', 'vy', 'ax', 'ay', 'gt_x', 'gt_y', 'gt_z', 'gt_heading', 'gt_vx', 'gt_vy', 'gt_ax', 'gt_ay']
         df_acc = df_acc[new_order].copy()
         df_acc.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
-        
-        # Save Data
-        csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_pose_motion.csv')
-        df_acc.dropna(inplace=True)
-        # first_frame = df_acc['frame_id'].min()
-        # df_acc['frame_id'] = df_acc['frame_id'].astype(int) - df_acc['frame_id'].min()
-        # txt_file_path = os.path.join(output_path, dataset_name, 'data', 'min_frame_subs.txt')
-        # with open(txt_file_path, 'w') as file:
-        #     file.write(str(first_frame))
-        df_acc.to_csv(csv_file_path, index=False)
         
         ########### Get center of the road values for map
         # df_acc_obj = df_acc[df_acc['object_id'] == '32a']
@@ -203,7 +194,92 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         # print(formatted_output)
         # break
         ###########
+        
+        ###################################################################### 
+        # Code for Kalman Filter
+        df_acc['gt_v'] = np.sqrt(df_acc['gt_vx']**2 + df_acc['gt_vy']**2)
+        df_acc['v'] = np.sqrt(df_acc['vx']**2 + df_acc['vy']**2)
+        df_acc.dropna(inplace=True)
+        
+        
+        df_to_return = pd.DataFrame(columns=['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'gt_x', 'gt_y', 'gt_z', 'gt_heading', 'vx', 'vy', 'ax', 'ay', 'v', 'gt_vx', 'gt_vy', 'gt_v', 'gt_ax', 'gt_ay', 'sgt_x', 'sgt_y', 'sgt_heading', 'sgt_vx', 'sgt_vy', 'sgt_v', 'sgt_ax', 'sgt_ay'])
+        
+        #column_names = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'gt_x', 'gt_y', 'gt_z', 'gt_heading', 'vx', 'vy', 'ax', 'ay', 'v', 'gt_vx', 'gt_vy', 'gt_v', 'gt_ax', 'gt_ay', 'sgt_x', 'sgt_y', 'sgt_heading', 'sgt_vx', 'sgt_vy', 'sgt_v', 'sgt_ax', 'sgt_ay']
 
+
+        for unique_object_id in df_acc['object_id'].unique():
+        
+            df_new = df_acc[df_acc['object_id'] == unique_object_id].copy()
+            df_new_copy = df_new.copy()
+            
+            gt_x = df_new_copy['gt_x'].values
+            gt_y = df_new_copy['gt_y'].values
+            gt_heading = df_new_copy['gt_heading'].values
+            gt_velocity = df_new_copy['gt_v'].values
+            
+            filter_veh = NonlinearKinematicBicycle(dt=0.05, sMeasurement=1.0)
+            P_matrix = None
+            for i in range(len(gt_x)):
+                if i == 0:  # initalize KF
+                    # initial P_matrix
+                    P_matrix = np.identity(4)
+                elif i < len(gt_x):
+                    # assign new est values
+                    gt_x[i] = x_vec_est_new[0][0]
+                    gt_y[i] = x_vec_est_new[1][0]
+                    gt_heading[i] = x_vec_est_new[2][0]
+                    gt_velocity[i] = x_vec_est_new[3][0]
+
+                if i < len(gt_x) - 1:  # no action on last data
+                    # filtering
+                    x_vec_est = np.array([[gt_x[i]],
+                                            [gt_y[i]],
+                                            [gt_heading[i]],
+                                            [gt_velocity[i]]])
+                    z_new = np.array([[gt_x[i + 1]],
+                                        [gt_y[i + 1]],
+                                        [gt_heading[i + 1]],
+                                        [gt_velocity[i + 1]]])
+                    x_vec_est_new, P_matrix_new = filter_veh.predict_and_update(
+                        x_vec_est=x_vec_est,
+                        u_vec=np.array([[0.], [0.]]),
+                        P_matrix=P_matrix,
+                        z_new=z_new
+                    )
+                    P_matrix = P_matrix_new
+            # End of Kalman Filter
+            # Start of adding sgt to the dataframe
+            
+            sgt_vx = (gt_x[1:] - gt_x[:-1]) / 0.05
+            sgt_vy = (gt_y[1:] - gt_y[:-1]) / 0.05
+            
+
+            df_new['sgt_x'] = gt_x
+            df_new['sgt_y'] = gt_y
+            df_new['sgt_heading'] = gt_heading
+            
+            # print(df_acc.to_string())
+            df_new['sgt_vx'] = np.append(np.nan, sgt_vx)
+            df_new['sgt_vy'] = np.append(np.nan, sgt_vy)
+            df_new['sgt_v'] = np.sqrt(df_new['sgt_vx']**2 + df_new['sgt_vy']**2)
+                
+            df_new['sgt_ax'] = np.append(np.nan, (df_new['sgt_vx'].values[1:] - df_new['sgt_vx'].values[:-1]) / 0.05)
+            df_new['sgt_ay'] = np.append(np.nan, (df_new['sgt_vy'].values[1:] - df_new['sgt_vy'].values[:-1]) / 0.05)
+        
+            #df_new = df_new[column_names]
+            df_to_return = pd.concat([df_to_return, df_new], ignore_index=True)
+            
+        df_acc = df_to_return
+        df_acc.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
+        ######################################################################
+        
+        
+        print(df_acc.to_string())
+        # Save Data
+        csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_pose_motion.csv')
+        df_acc.dropna(inplace=True)
+        df_acc.to_csv(csv_file_path, index=False)
+        #print(df_acc.to_string())
         
         ####################### Plot Trajectories #######################
         if plot_estimated_traj:

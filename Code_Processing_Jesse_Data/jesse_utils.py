@@ -301,43 +301,61 @@ def add_vel_acc(df_object, df_motion):
         ay = (data_2.gt_vy.iloc[0] - data_1.gt_vy)/dt
         return ax, ay
 
-    ### Calculate Velocity ###
-    column_names_vel = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'gt_x', 'gt_y', 'gt_z', 'vx', 'vy', 'gt_vx', 'gt_vy']
-    data_vels = []
-    
-    for row in df_object.itertuples(index=False):
-        filtered_df = df_motion[(df_motion['frame_id'] == (row.frame_id + 1)) & (df_motion['object_id'] == row.object_id)]
-        if not filtered_df.empty:
-            vx, vy, _ = get_vel(row, filtered_df)
-            gt_vx, gt_vy, _ = get_vel_gt(row, filtered_df)
-        else:
-            vx = vy = np.nan
-            gt_vx = gt_vy = np.nan
-        row_dict = row._asdict()
-        row_as_list = list(row_dict.values())
-        data_vels.append(row_as_list + [vx, vy, gt_vx, gt_vy])
-            
-    df_vels = pd.DataFrame(data_vels, columns=column_names_vel)
-
-    ### Calculate Acceleration ###
-    column_names_acc = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'gt_x', 'gt_y', 'gt_z', 'vx', 'vy', 'gt_vx', 'gt_vy', 'ax', 'ay', 'gt_ax', 'gt_ay']
-    data_acc = []
-    for row in df_vels.itertuples(index=False):
-        if row.frame_id < df_vels['frame_id'].max():
-            next_df = df_vels[(df_vels['frame_id'] == (row.frame_id + 1)) & (df_vels['object_id'] == row.object_id)]
-            if not next_df.empty:
-                ax, ay = get_acc(row, next_df)
-                gt_ax, gt_ay = get_acc_gt(row, next_df)
+    df_to_return = pd.DataFrame(columns=['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'gt_x', 'gt_y', 'gt_z', 'vx', 'vy', 'gt_vx', 'gt_vy', 'ax', 'ay', 'gt_ax', 'gt_ay'])
+    for unique_object_id in df_object['object_id'].unique():
+        ### Calculate Velocity ###
+        column_names_vel = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'gt_x', 'gt_y', 'gt_z', 'vx', 'vy', 'gt_vx', 'gt_vy']
+        data_vels = []
+        
+        df_new = df_object[df_object['object_id'] == unique_object_id].copy()
+        for idx, row in enumerate(df_new.itertuples(index=False)):
+            if idx == 0:  # For the first pose, we cannot calculate velocity, so set it to NaN
+                vx = vy = np.nan
+                gt_vx = gt_vy = np.nan
             else:
-                ax = ay = np.nan
-                gt_ax = gt_ay = np.nan
+                # Get the previous row (pose 1) and current row (pose 2)
+                prev_row = df_new.iloc[idx - 1]
+                filtered_df = df_motion[(df_motion['frame_id'] == row.frame_id) & (df_motion['object_id'] == row.object_id)]
+                filtered_prev_df = df_motion[(df_motion['frame_id'] == prev_row.frame_id) & (df_motion['object_id'] == prev_row.object_id)]
+                
+                if not filtered_df.empty and not filtered_prev_df.empty:
+                    # Calculate velocity at pose 2 (using pose 1 and pose 2)
+                    vx, vy, _ = get_vel(prev_row, filtered_df)
+                    gt_vx, gt_vy, _ = get_vel_gt(prev_row, filtered_df)
+                else:
+                    vx = vy = np.nan
+                    gt_vx = gt_vy = np.nan
             row_dict = row._asdict()
             row_as_list = list(row_dict.values())
-            data_acc.append(row_as_list + [ax, ay, gt_ax, gt_ay])
+            data_vels.append(row_as_list + [vx, vy, gt_vx, gt_vy])
+                
+        df_vels = pd.DataFrame(data_vels, columns=column_names_vel)
+
+        ### Calculate Acceleration ###
+        # column_names_acc = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'gt_x', 'gt_y', 'gt_z', 'vx', 'vy', 'gt_vx', 'gt_vy', 'ax', 'ay', 'gt_ax', 'gt_ay']
+        # data_acc = []
+        # for row in df_vels.itertuples(index=False):
+        #     if row.frame_id < df_vels['frame_id'].max():
+        #         next_df = df_vels[(df_vels['frame_id'] == (row.frame_id + 1)) & (df_vels['object_id'] == row.object_id)]
+        #         if not next_df.empty:
+        #             ax, ay = get_acc(row, next_df)
+        #             gt_ax, gt_ay = get_acc_gt(row, next_df)
+        #         else:
+        #             ax = ay = np.nan
+        #             gt_ax = gt_ay = np.nan
+        #         row_dict = row._asdict()
+        #         row_as_list = list(row_dict.values())
+        #         data_acc.append(row_as_list + [ax, ay, gt_ax, gt_ay])
+        
+        df_vels['ax'] = np.append(np.nan, (df_vels['vx'].values[1:] - df_vels['vx'].values[:-1]) / 0.05)
+        df_vels['ay'] = np.append(np.nan, (df_vels['vy'].values[1:] - df_vels['vy'].values[:-1]) / 0.05)
+        df_vels['gt_ax'] = np.append(np.nan, (df_vels['gt_vx'].values[1:] - df_vels['gt_vx'].values[:-1]) / 0.05)
+        df_vels['gt_ay'] = np.append(np.nan, (df_vels['gt_vy'].values[1:] - df_vels['gt_vy'].values[:-1]) / 0.05)
     
-    df_acc = pd.DataFrame(data_acc, columns=column_names_acc)
+        df_to_return = pd.concat([df_to_return, df_vels], ignore_index=True)
+    #df_acc = pd.DataFrame(data_acc, columns=column_names_acc)
     
-    return df_acc
+    return df_to_return
 
 
 # Drop rows in a df with specified object id
@@ -1167,7 +1185,7 @@ def prop_cycle() -> List[str]:
     return ["#0072B2", "#E69F00", "#009E73", "#CC79A7",
             "#56B4E9", "#D55E00", "#F0E442", "#000000"]
     
-def startup_plotting(font_size=14, line_width=1.5, output_dpi=600, tex_backend=True):
+def startup_plotting(font_size=18, line_width=1.5, output_dpi=600, tex_backend=True):
     """Edited from https://github.com/nackjaylor/formatting_tips-tricks/
     """
 

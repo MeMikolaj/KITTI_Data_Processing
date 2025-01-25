@@ -13,74 +13,6 @@ from typing import Final, List, Dict
 import matplotlib.pyplot as plt
 
 
-base_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_kitti'
-
-output_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed/'
-
-
-def create_plots():
-    
-    # Read object motion from a file
-    obj_path = os.path.join(base_path, 'rgbd_motion_world_backend_object_motion_log.csv')
-    df = pd.read_csv(obj_path)
-    df = df[df['object_id'] == '2a']
-
-
-    ######################## Code for Kalman Filter to remove!!!
-    gt_x = df['gt_x'].values
-    gt_y = df['gt_y'].values
-    gt_heading = df['gt_heading'].values
-    gt_velocity = df['gt_v'].values
-
-    filter_veh = NonlinearKinematicBicycle(dt=0.05, sMeasurement=1.0)
-    P_matrix = None
-    for i in range(len(gt_x)):
-        if i == 0:  # initalize KF
-            # initial P_matrix
-            P_matrix = np.identity(4)
-        elif i < len(x):
-            # assign new est values
-            gt_x[i] = x_vec_est_new[0][0]
-            gt_y[i] = x_vec_est_new[1][0]
-            gt_heading[i] = x_vec_est_new[2][0]
-            gt_velocity[i] = x_vec_est_new[3][0]
-
-        if i < len(x) - 1:  # no action on last data
-            # filtering
-            x_vec_est = np.array([[gt_x[i]],
-                                    [gt_y[i]],
-                                    [gt_heading[i]],
-                                    [gt_velocity[i]]])
-            z_new = np.array([[gt_x[i + 1]],
-                                [gt_y[i + 1]],
-                                [gt_heading[i + 1]],
-                                [gt_velocity[i + 1]]])
-            x_vec_est_new, P_matrix_new = filter_veh.predict_and_update(
-                x_vec_est=x_vec_est,
-                u_vec=np.array([[0.], [0.]]),
-                P_matrix=P_matrix,
-                z_new=z_new
-            )
-            P_matrix = P_matrix_new
-
-    ######################################################################
-    
-    # Formatting utils for plots
-    startup_plotting()
-
-    plot_eucd_xy_1(df, output_path)
-    plot_trajectories_1(df, output_path)
-    plot_heading_values_1(df, output_path)
-    plot_velocity_values_1(df, output_path)
-
-if __name__ == '__main__':
-    create_plots()
-    
-
-
-
-
-
 ##################################### Plotting Functions #####################################
 
 # Plot Euclidean Distance Poses
@@ -88,10 +20,6 @@ def plot_eucd_xy_1(df, output_path, file_folder=""):
 
     # Plotting
     plt.figure(figsize=(12, 6))
-
-
-    object_path = os.path.join(output_path, file_folder)
-    maybe_makedirs(object_path)
     
     df_data = df.copy()
     
@@ -99,21 +27,21 @@ def plot_eucd_xy_1(df, output_path, file_folder=""):
 
     # Estimated
     df_data['euc_d'] = np.sqrt(df_data['x']**2 + df_data['y']**2)
-    #df_data['euc_d_diff'] = df_data['euc_d'].diff()  # Calculate difference
-    plt.plot(x_values, df_data['euc_d'], label=f'DynoSAM Estimated Data', color='red', zorder=10)
+    df_data['euc_d_diff'] = df_data['euc_d'].diff()  # Calculate difference
+    plt.plot(x_values, df_data['euc_d_diff'], label=f'DynoSAM Estimated', color='red', zorder=10)
     
     # Ground Truth
     df_data['gt_euc_d'] = np.sqrt(df_data['gt_x']**2 + df_data['gt_y']**2)
-    #df_data['gt_euc_d_diff'] = df_data['gt_euc_d'].diff()  # Calculate difference
-    plt.plot(x_values, df_data['gt_euc_d'], label=f'Ground Truth Data', color='green', zorder=5)
+    df_data['gt_euc_d_diff'] = df_data['gt_euc_d'].diff()  # Calculate difference
+    plt.plot(x_values, df_data['gt_euc_d_diff'], label=f'Ground Truth', color='green', zorder=5)
     
     # Smoothed Ground Truth
     df_data['sgt_euc_d'] = np.sqrt(df_data['sgt_x']**2 + df_data['sgt_y']**2)
-    #df_data['sgt_euc_d_diff'] = df_data['sgt_euc_d'].diff()  # Calculate difference
-    plt.plot(x_values, df_data['sgt_euc_d'], label=f'Smoothed Ground Truth Data', color='blue', zorder=8)
+    df_data['sgt_euc_d_diff'] = df_data['sgt_euc_d'].diff()  # Calculate difference
+    plt.plot(x_values, df_data['sgt_euc_d_diff'], label=f'Smoothed Ground Truth', color='blue', zorder=8)
 
 
-    plt.title(f'Euclidean distance from (x, y) states to 0. Sequence 0000, Object 2')
+    plt.title(f'Euclidean distance between two consecutive states. Sequence 0000, Object 2')
     
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size
@@ -121,14 +49,14 @@ def plot_eucd_xy_1(df, output_path, file_folder=""):
     plt.xlabel('Consecutive Frames', fontsize=26)
     plt.ylabel('Euclidean Distance (m)', fontsize=26)
     
-    plt.legend(loc='upper right', fontsize=10)
+    plt.legend(loc='upper right', fontsize=18)
     
     plt.legend()
     plt.grid()
 
-    plot_file_path = os.path.join(output_path, "IV_xy_euc_kitti0000_2a.png")
+    plot_file_path = os.path.join(output_path, "xy_euc_kitti0000_2a.png")
     plt.savefig(plot_file_path, format="png", bbox_inches="tight")
-    plot_file_path = os.path.join(output_path, "IV_xy_euc_kitti0000_2a.pdf")
+    plot_file_path = os.path.join(output_path, "xy_euc_kitti0000_2a.pdf")
     plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
     plt.close()  # Close the figure to free memory
 
@@ -138,9 +66,6 @@ def plot_trajectories_1(df, output_path, file_folder=""):
 
     # Plotting
     plt.figure(figsize=(12, 6))
-
-    object_path = os.path.join(output_path, file_folder)
-    maybe_makedirs(object_path)
     
     df_data = df.copy()
     
@@ -160,17 +85,17 @@ def plot_trajectories_1(df, output_path, file_folder=""):
 
 
     # Estimated
-    plt.plot(x, y, label=f'DynoSAM Estimated Data', color='red', zorder=10)
+    plt.plot(x, y, label=f'DynoSAM Estimated', color='red', zorder=10)
     
     # Ground Truth
-    plt.plot(gt_x, gt_y, label=f'Ground Truth Data', color='green', zorder=5)
+    plt.plot(gt_x, gt_y, label=f'Ground Truth', color='green', zorder=5)
     
     # Smoothed Ground Truth
-    plt.plot(sgt_x, sgt_y, label=f'Smoothed Ground Truth Data', color='blue', zorder=8)
+    plt.plot(sgt_x, sgt_y, label=f'Smoothed Ground Truth', color='blue', zorder=8)
 
 
     # Arrows
-    for j in range(x_values):  
+    for j in range(len(df_data)):  
         plt.arrow(x[j], y[j], 0.5 * np.cos(heading[j]), 0.5 * np.sin(heading[j]),
                 head_width=0.15, head_length=0.15, fc='darkorange', ec='darkorange', alpha=0.5, zorder=11)
         plt.arrow(gt_x[j], gt_y[j], 0.5 * np.cos(gt_heading[j]), 0.5 * np.sin(gt_heading[j]),
@@ -189,14 +114,14 @@ def plot_trajectories_1(df, output_path, file_folder=""):
     plt.xlabel('X (m)', fontsize=26)
     plt.ylabel('Y (m)', fontsize=26)
     
-    plt.legend(loc='upper right', fontsize=10)
+    plt.legend(loc='upper right', fontsize=18)
     
     plt.legend()
     plt.grid()
 
-    plot_file_path = os.path.join(output_path, "IV_trajectory_kitti0000_2a.png")
+    plot_file_path = os.path.join(output_path, "trajectory_kitti0000_2a.png")
     plt.savefig(plot_file_path, format="png", bbox_inches="tight")
-    plot_file_path = os.path.join(output_path, "IV_trajectory_kitti0000_2a.pdf")
+    plot_file_path = os.path.join(output_path, "trajectory_kitti0000_2a.pdf")
     plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
     plt.close()  # Close the figure to free memory
 
@@ -206,19 +131,15 @@ def plot_heading_values_1(df, output_path, file_folder=""):
 
     # Plotting
     plt.figure(figsize=(12, 6))
-    
-
-    object_path = os.path.join(output_path, file_folder)
-    maybe_makedirs(object_path)
 
 
     x_values = np.arange(len(df))
 
-    plt.plot(x_values, df['heading'], label=f'DynoSAM Estimated Data', color='red', zorder=10)
+    plt.plot(x_values, df['heading'], label=f'DynoSAM Estimated', color='red', zorder=10)
 
-    plt.plot(x_values, df['gt_heading'], label=f'Ground Truth Data', color='green', zorder=5)
+    plt.plot(x_values, df['gt_heading'], label=f'Ground Truth', color='green', zorder=5)
 
-    plt.plot(x_values, df['sgt_heading'], label=f'Smoothed Ground Truth Data', color='blue', zorder=8)
+    plt.plot(x_values, df['sgt_heading'], label=f'Smoothed Ground Truth', color='blue', zorder=8)
 
     plt.title(f'Heading Values. Sequence 0000, Object 2')
     
@@ -228,14 +149,14 @@ def plot_heading_values_1(df, output_path, file_folder=""):
     plt.xlabel('Consecutive Frames', fontsize=26)
     plt.ylabel('Heading Values (radians)', fontsize=26)
     
-    plt.legend(loc='upper right', fontsize=10)
+    plt.legend(loc='upper right', fontsize=18)
     
     plt.legend()
     plt.grid()
 
-    plot_file_path = os.path.join(output_path, "IV_heading_val_kitti0000_2a.png")
+    plot_file_path = os.path.join(output_path, "heading_val_kitti0000_2a.png")
     plt.savefig(plot_file_path, format="png", bbox_inches="tight")
-    plot_file_path = os.path.join(output_path, "IV_heading_val_kitti0000_2a.pdf")
+    plot_file_path = os.path.join(output_path, "heading_val_kitti0000_2a.pdf")
     plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
     plt.close()  # Close the figure to free memory
 
@@ -245,10 +166,6 @@ def plot_velocity_values_1(df, output_path, file_folder=""):
 
     # Plotting
     plt.figure(figsize=(12, 6))
-
-
-    object_path = os.path.join(output_path, file_folder)
-    maybe_makedirs(object_path)
     
     df_data = df.copy()
     
@@ -259,13 +176,13 @@ def plot_velocity_values_1(df, output_path, file_folder=""):
     sgt_v = np.sqrt(df_data['sgt_vx']**2 + df_data['sgt_vy']**2)
 
     # Estimated
-    plt.plot(x_values, v, label=f'DynoSAM Estimated Data', color='red', zorder=10)
+    plt.plot(x_values, v, label=f'DynoSAM Estimated', color='red', zorder=10)
     
     # Ground Truth
-    plt.plot(x_values, gt_v, label=f'Ground Truth Data', color='green', zorder=5)
+    plt.plot(x_values, gt_v, label=f'Ground Truth', color='green', zorder=5)
     
     # Smoothed Ground Truth
-    plt.plot(x_values, sgt_v, label=f'Smoothed Ground Truth Data', color='blue', zorder=8)
+    plt.plot(x_values, sgt_v, label=f'Smoothed Ground Truth', color='blue', zorder=8)
 
 
     plt.title(f'Velocity Values. Sequence 0000, Object 2')
@@ -276,13 +193,42 @@ def plot_velocity_values_1(df, output_path, file_folder=""):
     plt.xlabel('Consecutive Frames', fontsize=26)
     plt.ylabel('Velocity Values (m/s)', fontsize=26)
     
-    plt.legend(loc='upper right', fontsize=10)
+    plt.legend(loc='upper right', fontsize=18)
     
     plt.legend()
     plt.grid()
 
-    plot_file_path = os.path.join(output_path, "IV_v_val_kitti0000_2a.png")
+    plot_file_path = os.path.join(output_path, "v_val_kitti0000_2a.png")
     plt.savefig(plot_file_path, format="png", bbox_inches="tight")
-    plot_file_path = os.path.join(output_path, "IV_v_val_kitti0000_2a.pdf")
+    plot_file_path = os.path.join(output_path, "v_val_kitti0000_2a.pdf")
     plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
     plt.close()  # Close the figure to free memory
+    
+##################################### END of Plotting Functions #####################################
+
+output_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/IEEE_IV_plots'
+
+
+def create_plots():
+    
+    # Read object motion from a file
+    obj_path = os.path.join('/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed/0000/data/object_pose_motion.csv')
+    df = pd.read_csv(obj_path)
+    df = df[df['object_id'] == '2a']
+    
+    # Formatting utils for plots
+    startup_plotting()
+
+    plot_eucd_xy_1(df, output_path)
+    plot_trajectories_1(df, output_path)
+    plot_heading_values_1(df, output_path)
+    plot_velocity_values_1(df, output_path)
+
+if __name__ == '__main__':
+    create_plots()
+    
+
+
+
+
+
