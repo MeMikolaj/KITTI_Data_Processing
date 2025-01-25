@@ -27,35 +27,34 @@ def create_plots():
 
 
     ######################## Code for Kalman Filter to remove!!!
-    gt_x = df_data['gt_x'].values
-    gt_y = df_data['gt_y'].values
-    
-    # Kalman filter Agent
-    velocity = df_data['gt_v'].values
+    gt_x = df['gt_x'].values
+    gt_y = df['gt_y'].values
+    gt_heading = df['gt_heading'].values
+    gt_velocity = df['gt_v'].values
 
     filter_veh = NonlinearKinematicBicycle(dt=0.05, sMeasurement=1.0)
     P_matrix = None
-    for i in range(len(x)):
+    for i in range(len(gt_x)):
         if i == 0:  # initalize KF
             # initial P_matrix
             P_matrix = np.identity(4)
         elif i < len(x):
             # assign new est values
-            x[i] = x_vec_est_new[0][0]
-            y[i] = x_vec_est_new[1][0]
-            heading[i] = x_vec_est_new[2][0]
-            velocity[i] = x_vec_est_new[3][0]
+            gt_x[i] = x_vec_est_new[0][0]
+            gt_y[i] = x_vec_est_new[1][0]
+            gt_heading[i] = x_vec_est_new[2][0]
+            gt_velocity[i] = x_vec_est_new[3][0]
 
         if i < len(x) - 1:  # no action on last data
             # filtering
-            x_vec_est = np.array([[x[i]],
-                                    [y[i]],
-                                    [heading[i]],
-                                    [velocity[i]]])
-            z_new = np.array([[x[i + 1]],
-                                [y[i + 1]],
-                                [heading[i + 1]],
-                                [velocity[i + 1]]])
+            x_vec_est = np.array([[gt_x[i]],
+                                    [gt_y[i]],
+                                    [gt_heading[i]],
+                                    [gt_velocity[i]]])
+            z_new = np.array([[gt_x[i + 1]],
+                                [gt_y[i + 1]],
+                                [gt_heading[i + 1]],
+                                [gt_velocity[i + 1]]])
             x_vec_est_new, P_matrix_new = filter_veh.predict_and_update(
                 x_vec_est=x_vec_est,
                 u_vec=np.array([[0.], [0.]]),
@@ -63,14 +62,6 @@ def create_plots():
                 z_new=z_new
             )
             P_matrix = P_matrix_new
-
-    # pl = length between 2 points - euc distance
-    # curvature, pl, _ = trajectory_curvature(np.stack((x, y), axis=-1))
-
-    if pl < 1.0:  # vehicle is "not" moving
-        x = x[0].repeat(max_timesteps + 1)
-        y = y[0].repeat(max_timesteps + 1)
-        heading = heading[0].repeat(max_timesteps + 1)
 
     ######################################################################
     
