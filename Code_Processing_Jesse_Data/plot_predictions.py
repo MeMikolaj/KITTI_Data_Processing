@@ -84,8 +84,8 @@ def plot_predictions(df_trajectron, output_path, frame_id, object_name, dataset_
     if save:
         plot_file_path = os.path.join(output_path, f"frame_{frame_id}.png")
         plt.savefig(plot_file_path, format="png", bbox_inches="tight")
-        plot_file_path = os.path.join(output_path, f"frame_{frame_id}.pdf")
-        plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
+        # plot_file_path = os.path.join(output_path, f"frame_{frame_id}.pdf")
+        # plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
     plt.close()  # Close the figure to free memory
     
     # Computer ADE and FDE
@@ -120,6 +120,7 @@ def process():
         object_folders = os.listdir(trajectron_path) # Same for CTRV and TRAJECTRON
         
         # Loop through the objects
+        last_pred = None
         for object_name_folder in tqdm(object_folders, "creating prediction plots for objects"):
             path_to_data = os.path.join(trajectron_path, object_name_folder)
             prediction_data_files = os.listdir(path_to_data)
@@ -127,7 +128,7 @@ def process():
             if object_name_folder != "2a":
                 continue
             
-            predictions = [(0, 0) for _ in range(115)]
+            # predictions = [(0, 0) for _ in range(115)]
             # Loop through the files with predictions for both CTRV and TRAJECTRON and plot
             for prediction_file in prediction_data_files:
 
@@ -141,36 +142,36 @@ def process():
                 frame_id = prediction_file.split('_')[1].split('.')[0]
                 
                 # Plot predictions - Trajectron only
-                # results = plot_predictions(trajectron_df, plots_path, frame_id, object_name_folder, dataset_name, ph=30, h=4, dt=0.05, ade_trajectron=ade_trajectron, fde_trajectron=fde_trajectron, save=True)
+                results = plot_predictions(trajectron_df, plots_path, frame_id, object_name_folder, dataset_name, ph=30, h=4, dt=0.05, ade_trajectron=ade_trajectron, fde_trajectron=fde_trajectron, save=True)
                 
-                # # Add errors
-                # ade_trajectron += results[0]
-                # fde_trajectron += results[1]
+                # Add errors
+                ade_trajectron += results[0]
+                fde_trajectron += results[1]
                 data_counter   += 1
                 
-                predictions[int(frame_id)-4] = ((trajectron_df.loc[trajectron_df['Type'] == 'Future', 'x'].values[29], trajectron_df.loc[trajectron_df['Type'] == 'Future', 'y'].values[29]))
+                # predictions[int(frame_id)-4] = ((trajectron_df.loc[trajectron_df['Type'] == 'Future', 'x'].values[29], trajectron_df.loc[trajectron_df['Type'] == 'Future', 'y'].values[29]))
                 
             # Plot euclidean Distance
-            euclidean_distance = []
-            for i in range(len(predictions)-1):
-                euclidean_distance.append(np.sqrt((predictions[i+1][0] - predictions[i][0])**2 + (predictions[i+1][1] - predictions[i][1])**2))
+            # euclidean_distance = []
+            # for i in range(len(predictions)-1):
+            #     euclidean_distance.append(np.sqrt((predictions[i+1][0] - predictions[i][0])**2 + (predictions[i+1][1] - predictions[i][1])**2))
                 
-            plt.figure(figsize=(12, 6))
+            # plt.figure(figsize=(12, 6))
 
-            x_values = np.arange(len(euclidean_distance))
-            plt.plot(x_values, euclidean_distance, label=f'Euclidean Distance Between Predictions', color='black')
-            mean_euclidean_d = sum(euclidean_distance) / len(euclidean_distance)
-            plt.axhline(y=mean_euclidean_d, linestyle='--', linewidth=2, label=f'Avg Euclidean Distance Between Predictions: {round(mean_euclidean_d, 3)}', color='magenta')
+            # x_values = np.arange(len(euclidean_distance))
+            # plt.plot(x_values, euclidean_distance, label=f'Euclidean Distance Between Predictions', color='black')
+            # mean_euclidean_d = sum(euclidean_distance) / len(euclidean_distance)
+            # plt.axhline(y=mean_euclidean_d, linestyle='--', linewidth=2, label=f'Avg Euclidean Distance Between Predictions: {round(mean_euclidean_d, 3)}', color='magenta')
 
-            plt.title(f'Euclidean Distance between Predictions, est kitti0000, object: 2a')
-            plt.xlabel('Consecutive Frames')
-            plt.ylabel('Euclidean Distance')
-            plt.legend()
-            plt.grid()
-            plot_file_path = os.path.join(general_path, 'plots', object_name_folder, "est_Euclidean_distance_predictions.png")
-            plt.savefig(plot_file_path)
-            plt.close()  # Close the figure to free memory
-            print(predictions)
+            # plt.title(f'Euclidean Distance between Predictions, est kitti0000, object: 2a')
+            # plt.xlabel('Consecutive Frames')
+            # plt.ylabel('Euclidean Distance')
+            # plt.legend()
+            # plt.grid()
+            # plot_file_path = os.path.join(general_path, 'plots', object_name_folder, "est_Euclidean_distance_predictions.png")
+            # plt.savefig(plot_file_path)
+            # plt.close()  # Close the figure to free memory
+            # print(predictions)
                 
 
     ade_trajectron /= data_counter

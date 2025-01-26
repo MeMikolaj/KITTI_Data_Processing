@@ -69,7 +69,6 @@ def plot_trajectories_1(df, output_path, file_folder=""):
     
     df_data = df.copy()
     
-    x_values = np.arange(len(df_data))
 
     #### Get Data ####
     x = df_data['x'].values
@@ -110,7 +109,9 @@ def plot_trajectories_1(df, output_path, file_folder=""):
     
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size
-
+    plt.ylim(-5, 20)
+    plt.axis('equal')
+    
     plt.xlabel('X (m)', fontsize=26)
     plt.ylabel('Y (m)', fontsize=26)
     

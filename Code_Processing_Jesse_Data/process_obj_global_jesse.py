@@ -79,8 +79,8 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         dataset_name = folder_name.split('_')[1] # 0000 from kitti_0000 or 0006 from kitti_0006
         
         # Only Process 0000
-        if dataset_name != "0000":
-            continue
+        # if dataset_name != "0000":
+        #     continue
         
         # Create an output folder
         maybe_makedirs(os.path.join(output_path, dataset_name, 'data'))
@@ -100,9 +100,9 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         #df_obj_motion = df_obj_motion[df_obj_motion['object_id'] == 32]
         
         ######### NuScenes Mini #########
-        nusc_path = os.path.join('/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/NuscMini_scene_61_id_c1958768d48640948f6053d04cffd35b.csv')
-        df_nusc = pd.read_csv(nusc_path)
-        df_nusc = df_nusc.rename(columns={'node_id': 'object_id'})
+        # nusc_path = os.path.join('/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/NuscMini_scene_61_id_c1958768d48640948f6053d04cffd35b.csv')
+        # df_nusc = pd.read_csv(nusc_path)
+        # df_nusc = df_nusc.rename(columns={'node_id': 'object_id'})
         
         
         ####################### GET OBJECT CATEGORIES #######################
@@ -200,12 +200,9 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         df_acc['gt_v'] = np.sqrt(df_acc['gt_vx']**2 + df_acc['gt_vy']**2)
         df_acc['v'] = np.sqrt(df_acc['vx']**2 + df_acc['vy']**2)
         df_acc.dropna(inplace=True)
-        
-        
+            
         df_to_return = pd.DataFrame(columns=['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'gt_x', 'gt_y', 'gt_z', 'gt_heading', 'vx', 'vy', 'ax', 'ay', 'v', 'gt_vx', 'gt_vy', 'gt_v', 'gt_ax', 'gt_ay', 'sgt_x', 'sgt_y', 'sgt_heading', 'sgt_vx', 'sgt_vy', 'sgt_v', 'sgt_ax', 'sgt_ay'])
         
-        #column_names = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'gt_x', 'gt_y', 'gt_z', 'gt_heading', 'vx', 'vy', 'ax', 'ay', 'v', 'gt_vx', 'gt_vy', 'gt_v', 'gt_ax', 'gt_ay', 'sgt_x', 'sgt_y', 'sgt_heading', 'sgt_vx', 'sgt_vy', 'sgt_v', 'sgt_ax', 'sgt_ay']
-
 
         for unique_object_id in df_acc['object_id'].unique():
         
@@ -258,7 +255,6 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
             df_new['sgt_y'] = gt_y
             df_new['sgt_heading'] = gt_heading
             
-            # print(df_acc.to_string())
             df_new['sgt_vx'] = np.append(np.nan, sgt_vx)
             df_new['sgt_vy'] = np.append(np.nan, sgt_vy)
             df_new['sgt_v'] = np.sqrt(df_new['sgt_vx']**2 + df_new['sgt_vy']**2)
@@ -266,7 +262,6 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
             df_new['sgt_ax'] = np.append(np.nan, (df_new['sgt_vx'].values[1:] - df_new['sgt_vx'].values[:-1]) / 0.05)
             df_new['sgt_ay'] = np.append(np.nan, (df_new['sgt_vy'].values[1:] - df_new['sgt_vy'].values[:-1]) / 0.05)
         
-            #df_new = df_new[column_names]
             df_to_return = pd.concat([df_to_return, df_new], ignore_index=True)
             
         df_acc = df_to_return
@@ -274,12 +269,11 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         ######################################################################
         
         
-        print(df_acc.to_string())
+        # print(df_acc.to_string())
         # Save Data
         csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_pose_motion.csv')
         df_acc.dropna(inplace=True)
         df_acc.to_csv(csv_file_path, index=False)
-        #print(df_acc.to_string())
         
         ####################### Plot Trajectories #######################
         if plot_estimated_traj:
@@ -287,7 +281,7 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
             plot_poses(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', plot_estimated=True) # Motion
             plot_poses(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_poses', plot_estimated=True) # Object estimated poses
             # NuscMini
-            plot_poses(df_nusc, os.path.join(output_path, dataset_name, 'plots'), file_folder='NuScenes_mini', plot_estimated=True) # Nusc
+            # plot_poses(df_nusc, os.path.join(output_path, dataset_name, 'plots'), file_folder='NuScenes_mini', plot_estimated=True) # Nusc
             
         if plot_gt_traj:
             plot_poses(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_camera', plot_gt=True) # Camera
@@ -301,7 +295,7 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
             
             
         if plot_xy_pose:
-            plot_eucd_poses(df_nusc, os.path.join(output_path, dataset_name, 'plots'), file_folder='NuScenes_mini', plot_estimated=True) # Nusc
+            # plot_eucd_poses(df_nusc, os.path.join(output_path, dataset_name, 'plots'), file_folder='NuScenes_mini', plot_estimated=True) # Nusc
             plot_eucd_poses(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='', plot_estimated=True) # Nusc
             plot_eucd_poses(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='', plot_gt=True) # Nusc
             
@@ -312,7 +306,7 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
             plot_heading_differences(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', plot_estimated=True) # Motion
             plot_heading_differences(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_poses', plot_estimated=True) # Object estimated poses
             # NuscMini
-            plot_heading_differences(df_nusc, os.path.join(output_path, dataset_name, 'plots'), file_folder='NuScenes_mini', plot_estimated=True) # Nusc
+            # plot_heading_differences(df_nusc, os.path.join(output_path, dataset_name, 'plots'), file_folder='NuScenes_mini', plot_estimated=True) # Nusc
             
         if plot_gt_headings:
             plot_heading_differences(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_camera', plot_gt=True) # Camera
@@ -330,7 +324,7 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
             plot_heading_values(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', plot_estimated=True) # Motion
             plot_heading_values(df_obj_save, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_poses', plot_estimated=True) # Object estimated poses
             # NuscMini
-            plot_heading_values(df_nusc, os.path.join(output_path, dataset_name, 'plots'), file_folder='NuScenes_mini', plot_estimated=True) # Nusc
+            # plot_heading_values(df_nusc, os.path.join(output_path, dataset_name, 'plots'), file_folder='NuScenes_mini', plot_estimated=True) # Nusc
             
         if plot_gt_values:
             plot_heading_values(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_camera', plot_gt=True) # Camera
@@ -346,7 +340,7 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         if plot_estimated_velocity:
             plot_velocity_values(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_objects_motion', plot_estimated=True) # Motion
             # NuscMini
-            plot_velocity_values(df_nusc, os.path.join(output_path, dataset_name, 'plots'), file_folder='NuScenes_mini', plot_estimated=True) # Nusc
+            # plot_velocity_values(df_nusc, os.path.join(output_path, dataset_name, 'plots'), file_folder='NuScenes_mini', plot_estimated=True) # Nusc
             
         if plot_gt_velocity:
             plot_velocity_values(df_acc, os.path.join(output_path, dataset_name, 'plots'), file_folder='gt_objects_motion', plot_gt=True) # Motion
