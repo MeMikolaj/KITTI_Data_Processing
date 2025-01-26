@@ -5,13 +5,15 @@ from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from jesse_utils import *
+import natsort
 
 ###############################################################################################
 ###############################################################################################  
 ###############################################################################################  
     
-def plot_predictions(df_trajectron, output_path, frame_id, object_name, dataset_name, ph, h, dt, ade_trajectron, fde_trajectron, save=True):
+def plot_predictions(df_real, df_prediction, frame_id, ph, output_path, save=True):
     
+    df_trajectron = df_prediction.copy()
     # Trajectron History and Future
     x_trajectron_hist = df_trajectron.loc[df_trajectron['Type'] == 'History', 'x'].values
     y_trajectron_hist = df_trajectron.loc[df_trajectron['Type'] == 'History', 'y'].values
@@ -34,8 +36,7 @@ def plot_predictions(df_trajectron, output_path, frame_id, object_name, dataset_
     # plt.plot(x_gt_hist, y_gt_hist, linestyle='-',label=f'History used for prediction', color='black')
     
     ######## Plot Whole Trjeactory! History and Future
-    df_motion = pd.read_csv("/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed/0000/data/object_pose_motion.csv")
-    df_motion = df_motion[df_motion['object_id'] == object_name]
+    df_motion = df_real.copy()
     
     # All gt History Values of an object:
     x_gt_hist_all = df_motion.loc[df_motion['frame_id'] <= int(frame_id), 'x'].values
@@ -106,80 +107,89 @@ def plot_predictions(df_trajectron, output_path, frame_id, object_name, dataset_
  
 
 base_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed'
+
 datasets = ['0000']
+estimation_methods = ['est', 'gt', 'sgt']
 
 def process():
     startup_plotting()
-    ade_trajectron = 0; fde_trajectron = 0; data_counter=0
+    
     for dataset_name in datasets:
-        general_path = os.path.join(base_path, dataset_name)
-        
-        # TRAJECTRON DATA
-        trajectron_path = os.path.join(general_path, 'data', 'Trajectron_data_destandardized')
-        
-        object_folders = os.listdir(trajectron_path) # Same for CTRV and TRAJECTRON
-        
-        # Loop through the objects
-        last_pred = None
-        for object_name_folder in tqdm(object_folders, "creating prediction plots for objects"):
-            path_to_data = os.path.join(trajectron_path, object_name_folder)
-            prediction_data_files = os.listdir(path_to_data)
-            
-            if object_name_folder != "2a":
-                continue
-            
-            # predictions = [(0, 0) for _ in range(115)]
-            # Loop through the files with predictions for both CTRV and TRAJECTRON and plot
-            for prediction_file in prediction_data_files:
+        data_path   = os.path.join(base_path, dataset_name, 'data', 'object_pose_motion.csv')
+        df_dataset = pd.read_csv(data_path)
 
-                # TRAJECTRON csv
-                trajectron_file_path = os.path.join(trajectron_path, object_name_folder, prediction_file)
-                trajectron_df = pd.read_csv(trajectron_file_path)
+        for estimation_method in estimation_methods:
+
+            df_real = df_dataset.copy()
+            ade_error = 0; fde_error = 0; avg_consistency_error = 0; error_counter = 0, error_counter_cons = 0 # Evaluation Errors
+        
+            objects_path = os.path.join(base_path, dataset_name, 'data', 'predictions_global', estimation_method)
+            object_folders = os.listdir(objects_path) # List Objects
+        
+            # Filter dataframe with GT trajectory
+            if estimation_method == 'est':
+                df_real = df_real[['object_id', 'frame_id', 'x', 'y']]
+            elif estimation_method == 'gt':
+                df_real = df_real[['object_id', 'frame_id', 'gt_x', 'gt_y']]
+                df_real = df_real.rename(columns={'gt_x': 'x', 'gt_y': 'y'})
+            elif estimation_method == 'sgt':
+                df_real = df_real[['object_id', 'frame_id', 'sgt_x', 'sgt_y']]
+                df_real = df_real.rename(columns={'sgt_x': 'x', 'sgt_y': 'y'})
+            else:
+                raise Exception("Estimation methods must be est, gt or sgt")
+            
+            for object_name in tqdm(object_folders, "creating prediction plots for objects"):
+
+                last_pred = None # Last prediction for ACE
+
+                df_real_obj = df_real.copy()
+                df_real_obj = [df_real_obj['object_id'] == object_name]
                 
-                plots_path = os.path.join(general_path, 'plots', object_name_folder, 'est_trajectron')
+                if object_name != "2a":
+                    continue
+
+                predictions_path = os.path.join(objects_path, object_name)
+                predictions_data_files = natsorted(os.listdir(predictions_path)) # pip install natsort
+            
+            
+                for prediction_file_name in predictions_data_files:
+            
+                    prediction_file_path = os.path.join(predictions_path, prediction_file_name)
+                    df_prediction = pd.read_csv(prediction_file_path)
+
+                    plots_path = os.path.join(base_path, dataset_name, 'plots', object_name, 'traj_predictions', estimation_method)
+                    maybe_makedirs(plots_path)
+
+                    frame_id = prediction_file_name.split('.')[0]
+
+                
+                
+                    # Plot predictions - Trajectron only
+                    ade, fde, last, prev_to_last = plot_predictions(df_real_obj, df_prediction, frame_id, ph=30, output_path=plots_path, save=True)
                     
-                maybe_makedirs(plots_path)
-                frame_id = prediction_file.split('_')[1].split('.')[0]
-                
-                # Plot predictions - Trajectron only
-                results = plot_predictions(trajectron_df, plots_path, frame_id, object_name_folder, dataset_name, ph=30, h=4, dt=0.05, ade_trajectron=ade_trajectron, fde_trajectron=fde_trajectron, save=True)
-                
-                # Add errors
-                ade_trajectron += results[0]
-                fde_trajectron += results[1]
-                data_counter   += 1
+                    if last_pred == None:
+                        last_pred = last
+                    else:
+                        avg_consistency_error += np.linalg.norm(np.array(last_pred) - np.array(prev_to_last))
+                        error_counter_cons    += 1
+                        last_pred = last
+
+                    # Add errors
+                    ade_error             += ade
+                    fde_error             += fde
+                    error_counter         += 1
+                    
                 
                 # predictions[int(frame_id)-4] = ((trajectron_df.loc[trajectron_df['Type'] == 'Future', 'x'].values[29], trajectron_df.loc[trajectron_df['Type'] == 'Future', 'y'].values[29]))
                 
-            # Plot euclidean Distance
-            # euclidean_distance = []
-            # for i in range(len(predictions)-1):
-            #     euclidean_distance.append(np.sqrt((predictions[i+1][0] - predictions[i][0])**2 + (predictions[i+1][1] - predictions[i][1])**2))
-                
-            # plt.figure(figsize=(12, 6))
 
-            # x_values = np.arange(len(euclidean_distance))
-            # plt.plot(x_values, euclidean_distance, label=f'Euclidean Distance Between Predictions', color='black')
-            # mean_euclidean_d = sum(euclidean_distance) / len(euclidean_distance)
-            # plt.axhline(y=mean_euclidean_d, linestyle='--', linewidth=2, label=f'Avg Euclidean Distance Between Predictions: {round(mean_euclidean_d, 3)}', color='magenta')
-
-            # plt.title(f'Euclidean Distance between Predictions, est kitti0000, object: 2a')
-            # plt.xlabel('Consecutive Frames')
-            # plt.ylabel('Euclidean Distance')
-            # plt.legend()
-            # plt.grid()
-            # plot_file_path = os.path.join(general_path, 'plots', object_name_folder, "est_Euclidean_distance_predictions.png")
-            # plt.savefig(plot_file_path)
-            # plt.close()  # Close the figure to free memory
-            # print(predictions)
-                
-
-    ade_trajectron /= data_counter
-    fde_trajectron /= data_counter
-    
-    print("---------------------------------------------")
-    print(f"Trajectron   -    ADE: {ade_trajectron}, FDE: {fde_trajectron}")
-    print("---------------------------------------------")
+            ade_error /= error_counter
+            fde_error /= error_counter
+            avg_consistency_error /= error_counter_cons
+            
+            print("---------------------------------------------")
+            print(f"Dataset: {dataset_name}, Estimation Method: {estimation_method}")
+            print(f"Results: ADE: {ade_error}, FDE: {fde_error}, ACE: {avg_consistency_error}")
         
         
 if __name__ == '__main__':
