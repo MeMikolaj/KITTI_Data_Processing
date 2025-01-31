@@ -44,9 +44,9 @@ def plot_predictions(df_real, df_prediction, frame_id, ph, output_path, save_png
     plt.plot(x_gt_hist_all, y_gt_hist_all, ls='-', linewidth=2.0, label=f'DynoSAM Trajectory', color='black')
     
     # All gt Future Values of an object:
-    # x_gt_fut_all = df_motion.loc[df_motion['frame_id'] >= int(frame_id), 'x'].values
-    # y_gt_fut_all = df_motion.loc[df_motion['frame_id'] >= int(frame_id), 'y'].values
-    # plt.plot(x_gt_fut_all, y_gt_fut_all, ls='--', linewidth=2.0, label=f'Ground Truth Future', color='black')
+    x_gt_fut_all = df_motion.loc[df_motion['frame_id'] >= int(frame_id), 'x'].values
+    y_gt_fut_all = df_motion.loc[df_motion['frame_id'] >= int(frame_id), 'y'].values
+    plt.plot(x_gt_fut_all, y_gt_fut_all, ls='--', linewidth=2.0, label=f'Ground Truth Future', color='black')
     ########
     
     # Trajectron Prediction
@@ -61,11 +61,11 @@ def plot_predictions(df_real, df_prediction, frame_id, ph, output_path, save_png
     plt.gca().add_artist(object2)
     
     # Draw Last predicted point form the gt data
-    # object = plt.Circle((x_gt_fut_all[ph], y_gt_fut_all[ph]), 0.4, color='blueviolet', label=f'Future location after {ph} steps', fill=True, linewidth=2)
-    # plt.gca().add_artist(object)
+    object = plt.Circle((x_gt_fut_all[ph], y_gt_fut_all[ph]), 0.4, color='blueviolet', label=f'Future location after {ph} steps', fill=True, linewidth=2)
+    plt.gca().add_artist(object)
     
     # Trajectron Last predicted point - drawing a circle
-    object1 = plt.Circle((x_trajectron_pred[ph-1], y_trajectron_pred[ph-1]), 0.4, color='red', fill=True, linewidth=2)
+    object1 = plt.Circle((x_trajectron_pred[ph-1], y_trajectron_pred[ph-1]), 0.4, color='red', label=f'Predicted location after {ph} steps', fill=True, linewidth=2)
     plt.gca().add_artist(object1)
     
     
@@ -195,7 +195,7 @@ datasets = ['0061']#, '0757']#['0000', '0003', '0005', '0018', '0020'] # '0061',
 estimation_methods = ['est']#, 'gt', 'sgt']
 
 def process():
-    startup_plotting(font_size=16)
+    startup_plotting()
     
     for dataset_name in datasets:
         data_path   = os.path.join(base_path, dataset_name, 'data', 'object_pose_motion.csv')
