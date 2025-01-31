@@ -38,10 +38,10 @@ def plot_eucd_xy_1(df, output_path, file_folder=""):
     # Smoothed Ground Truth
     df_data['sgt_euc_d'] = np.sqrt(df_data['sgt_x']**2 + df_data['sgt_y']**2)
     df_data['sgt_euc_d_diff'] = df_data['sgt_euc_d'].diff()  # Calculate difference
-    plt.plot(x_values, df_data['sgt_euc_d_diff'], label=f'Smoothed Ground Truth', color='blue', zorder=8)
+    plt.plot(x_values, df_data['sgt_euc_d_diff'], label=f'Ground Truth + EKF', color='blue', zorder=8)
 
 
-    plt.title(f'Euclidean distance between two consecutive states. Sequence 0000, Object 2')
+    plt.title(f'Euclidean distance between two consecutive states. Sequence 0000. Object 2.')
     
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size
@@ -90,7 +90,7 @@ def plot_trajectories_1(df, output_path, file_folder=""):
     plt.plot(gt_x, gt_y, label=f'Ground Truth', color='green', zorder=5)
     
     # Smoothed Ground Truth
-    plt.plot(sgt_x, sgt_y, label=f'Smoothed Ground Truth', color='blue', zorder=8)
+    plt.plot(sgt_x, sgt_y, label=f'Ground Truth + EKF', color='blue', zorder=8)
 
 
     # Arrows
@@ -105,7 +105,7 @@ def plot_trajectories_1(df, output_path, file_folder=""):
 
 
 
-    plt.title(f'Trajectory. Sequence 0000, Object 2')
+    plt.title(f'Trajectory. Sequence 0000. Object 2.')
     
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size
@@ -140,15 +140,15 @@ def plot_heading_values_1(df, output_path, file_folder=""):
 
     plt.plot(x_values, df['gt_heading'], label=f'Ground Truth', color='green', zorder=5)
 
-    plt.plot(x_values, df['sgt_heading'], label=f'Smoothed Ground Truth', color='blue', zorder=8)
+    plt.plot(x_values, df['sgt_heading'], label=f'Ground Truth + EKF', color='blue', zorder=8)
 
-    plt.title(f'Heading Values. Sequence 0000, Object 2')
+    plt.title(f'Heading Values. Sequence 0000. Object 2.')
     
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size
 
     plt.xlabel('Consecutive Frames', fontsize=26)
-    plt.ylabel('Heading Values (radians)', fontsize=26)
+    plt.ylabel('Heading Values (rad)', fontsize=26)
     
     plt.legend(loc='upper right', fontsize=18)
     
@@ -183,10 +183,10 @@ def plot_velocity_values_1(df, output_path, file_folder=""):
     plt.plot(x_values, gt_v, label=f'Ground Truth', color='green', zorder=5)
     
     # Smoothed Ground Truth
-    plt.plot(x_values, sgt_v, label=f'Smoothed Ground Truth', color='blue', zorder=8)
+    plt.plot(x_values, sgt_v, label=f'Ground Truth + EKF', color='blue', zorder=8)
 
 
-    plt.title(f'Velocity Values. Sequence 0000, Object 2')
+    plt.title(f'Velocity Values. Sequence 0000. Object 2.')
     
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size

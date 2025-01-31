@@ -120,7 +120,7 @@ def local_to_global(folder_name, local_values, df_ego, category_dict):
 
 import numpy as np
 
-def create_heading(df, create_turn_rate=False):
+def create_heading(df, stabilize_heading=True, create_turn_rate=False):
     # Sort the DataFrame by 'scene_id' and 'frame_id'
     df.sort_values(by=['scene_id', 'frame_id'], inplace=True)
     
@@ -152,7 +152,7 @@ def create_heading(df, create_turn_rate=False):
                 gt_delta_y = obj_df['gt_y'].iloc[i+1] - obj_df['gt_y'].iloc[i]
                 
                 # Update heading
-                if abs(delta_x) < 0.1 and abs(delta_y) < 0.1 and i != 0:
+                if stabilize_heading and abs(delta_x) < 0.1 and abs(delta_y) < 0.1 and i != 0:
                     df.loc[obj_df.index[i+1], 'heading'] = last_heading  # Update using i+1
                 else:
                     heading_value = np.arctan2(delta_y, delta_x)
@@ -160,7 +160,7 @@ def create_heading(df, create_turn_rate=False):
                     last_heading = heading_value  # Update last_heading
                     
                 # Update gt_heading
-                if abs(gt_delta_x) < 0.1 and abs(gt_delta_y) < 0.1 and i != 0:
+                if stabilize_heading and abs(gt_delta_x) < 0.1 and abs(gt_delta_y) < 0.1 and i != 0:
                     df.loc[obj_df.index[i+1], 'gt_heading'] = gt_last_heading
                 else:
                     gt_heading_value = np.arctan2(gt_delta_y, gt_delta_x)

@@ -23,13 +23,13 @@ class NonlinearKinematicBicycle:
             # sHeading = 0.5 * dt  # assume 0.5rad/s as maximum turn rate
             # sVel = 8.8 * dt  # assume 8.8m/s2 as maximum acceleration
             # sMeasurement = 1.0
-            sPos = 12 * self.dt  # assume 6m/s2 as maximum acceleration
-            sHeading = 5 * self.dt  # assume 0.5rad/s as maximum turn rate
-            sVel = 6 * self.dt  # assume 6m/s2 as maximum acceleration
+            sPos = 4 * self.dt  # assume 4m/s2 as maximum acceleration
+            sHeading = 1.0 * self.dt  # assume 0.7rad/s as maximum turn rate
+            sVel = 4 * self.dt  # assume 4m/s2 as maximum acceleration
         if sMeasurement is None:
             sMeasurement = 5.0
         # state transition noise
-        self.Q = 0.1*np.diag([sPos ** 2, sPos ** 2, sHeading ** 2, sVel ** 2])
+        self.Q = np.diag([sPos ** 2, sPos ** 2, sHeading ** 2, sVel ** 2])
         # measurement noise
         self.R = np.diag([sMeasurement ** 2, sMeasurement ** 2, sMeasurement ** 2, sMeasurement ** 2])
 

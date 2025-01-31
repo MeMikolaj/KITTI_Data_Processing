@@ -78,9 +78,10 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         # Get dataset name
         dataset_name = folder_name.split('_')[1] # 0000 from kitti_0000 or 0006 from kitti_0006
         
-        # Only Process 0000
-        # if dataset_name != "0000":
-        #     continue
+        # Only Process 0000 
+        if dataset_name != "0061" and dataset_name != "0103" and dataset_name != "0655" and  dataset_name != "0757":
+            continue
+                    
         
         # Create an output folder
         maybe_makedirs(os.path.join(output_path, dataset_name, 'data'))
@@ -99,11 +100,13 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         df_obj_motion = pd.read_csv(obj_motion_path)
         #df_obj_motion = df_obj_motion[df_obj_motion['object_id'] == 32]
         
+        # print(dataset_name)
+        # print(df_obj_pose['object_id'].unique())
+        
         ######### NuScenes Mini #########
         # nusc_path = os.path.join('/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/NuscMini_scene_61_id_c1958768d48640948f6053d04cffd35b.csv')
         # df_nusc = pd.read_csv(nusc_path)
         # df_nusc = df_nusc.rename(columns={'node_id': 'object_id'})
-        
         
         ####################### GET OBJECT CATEGORIES #######################
         obj_category_path = os.path.join(category_path + '/' + dataset_name, 'object_category.txt')
@@ -123,7 +126,12 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         df_cmr = categ_to_vehicle(df_cmr)                         # Category (bus, car, bike) -> Vehicle
         df_cmr = set_df_types(df_cmr, include_obj_id=False)       # Casting columns to their type
         
-        df_cmr = create_heading(df=df_cmr, create_turn_rate=False) # Add heading column
+        df_cmr_to_merge = df_cmr.copy()
+        if dataset_name in ['0000', '0001', '0002', '0003', '0004', '0005', '0006', '0018', '0020']:
+            df_cmr = create_heading(df=df_cmr, stabilize_heading=True, create_turn_rate=False) # Add heading column
+        else:
+            df_cmr = create_heading(df=df_cmr, stabilize_heading=False, create_turn_rate=False) # Add heading column
+        
         
         # Save Data
         csv_file_path = os.path.join(output_path, dataset_name, 'data', 'camera_pose.csv')
@@ -134,6 +142,7 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         ############# OBJECT POSE CV TO NORMAL #############
 
         df_obj = object_to_normal_3D(df_obj_pose, category_dict, dataset_name) # CV to Normal
+        
         
         df_obj = categ_to_vehicle(df_obj)                                      # Category (bus, car, bike) -> Vehicle
         df_obj = set_df_types(df_obj, include_obj_id=True)                     # Casting columns to their type
@@ -160,8 +169,12 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         
         # Save Data
         df_obj_save = df_obj
-        df_obj_save = fix_missing_frames(df_obj_save) 
-        df_obj_save = create_heading(df=df_obj_save, create_turn_rate=False)
+        df_obj_save = fix_missing_frames(df_obj_save)
+        if dataset_name in ['0000', '0001', '0002', '0003', '0004', '0005', '0006', '0018', '0020']:
+            df_obj_save = create_heading(df=df_obj_save, stabilize_heading=True, create_turn_rate=False)
+        else:
+            df_obj_save = create_heading(df=df_obj_save, stabilize_heading=False, create_turn_rate=False)
+        
         #df_obj_save.dropna(inplace=True)
         df_obj_save.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
         csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_poses.csv')
@@ -170,7 +183,12 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         
         # Get Velocity and Acceleration from motion
         df_acc = add_vel_acc(df_obj, df_motion_pose)        # Vel and Acc
+        df_acc['x'] = df_acc['x']*6
+        df_acc['y'] = df_acc['y']*6
+        df_acc['vx'] = df_acc['vx']*6
+        df_acc['vy'] = df_acc['vy']*6
         df_acc.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
+        
         
         # Improve the data
         df_acc = categ_to_vehicle(df_acc)                   # Category (bus, car, bike) -> Vehicle
@@ -178,7 +196,102 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
 
         #df_acc.dropna(inplace=True)
         df_acc = fix_missing_frames(df_acc)                     # Update object_id considering missing frames
-        df_acc = create_heading(df_acc, create_turn_rate=False)    # Add heading column
+        
+        if dataset_name in ['0000', '0001', '0002', '0003', '0004', '0005', '0006', '0018', '0020']:
+            df_acc = create_heading(df_acc, stabilize_heading=True, create_turn_rate=False)    # Add heading column
+        else:
+            df_acc = create_heading(df_acc, stabilize_heading=False, create_turn_rate=False)    # Add heading column
+        
+        
+        
+        ################################## Add Camera to data ######################
+        df_cmr_to_merge['object_id'] = '999a'
+        x = df_cmr_to_merge['x'].values
+        y = df_cmr_to_merge['y'].values
+        
+        df_cmr_to_merge['vx'] = np.append(np.nan, (x[1:] - x[:-1]) / 0.05)
+        df_cmr_to_merge['vy'] = np.append(np.nan, (y[1:] - y[:-1]) / 0.05)
+        df_cmr_to_merge['v'] = np.sqrt(df_cmr_to_merge['vx']**2 + df_cmr_to_merge['vy']**2)
+            
+        # df_cmr_to_merge['ax'] = np.append(np.nan, (df_cmr_to_merge['vx'].values[1:] - df_cmr_to_merge['vx'].values[:-1]) / 0.05)
+        # df_cmr_to_merge['ay'] = np.append(np.nan, (df_cmr_to_merge['vy'].values[1:] - df_cmr_to_merge['vy'].values[:-1]) / 0.05)
+        
+        
+        gt_x = df_cmr_to_merge['gt_x'].values
+        gt_y = df_cmr_to_merge['gt_y'].values
+        
+        df_cmr_to_merge['gt_vx'] = np.append(np.nan, (gt_x[1:] - gt_x[:-1]) / 0.05)
+        df_cmr_to_merge['gt_vy'] = np.append(np.nan, (gt_y[1:] - gt_y[:-1]) / 0.05)
+        df_cmr_to_merge['gt_v'] = np.sqrt(df_cmr_to_merge['gt_vx']**2 + df_cmr_to_merge['gt_vy']**2)
+            
+        df_cmr_to_merge['gt_ax'] = np.append(np.nan, (df_cmr_to_merge['gt_vx'].values[1:] - df_cmr_to_merge['gt_vx'].values[:-1]) / 0.05)
+        df_cmr_to_merge['gt_ay'] = np.append(np.nan, (df_cmr_to_merge['gt_vy'].values[1:] - df_cmr_to_merge['gt_vy'].values[:-1]) / 0.05)
+        if dataset_name in ['0000', '0001', '0002', '0003', '0004', '0005', '0006', '0018', '0020']:
+            df_cmr_to_merge = create_heading(df_cmr_to_merge, stabilize_heading=True, create_turn_rate=False)
+        else:
+            df_cmr_to_merge = create_heading(df_cmr_to_merge, stabilize_heading=False, create_turn_rate=False)
+        df_cmr_to_merge.dropna(inplace=True)
+        
+        ################################## KALMAN ##################################
+        df_new_copy = df_cmr_to_merge.copy()
+        
+        x = df_new_copy['x'].values
+        y = df_new_copy['y'].values
+        heading = df_new_copy['heading'].values
+        velocity = df_new_copy['v'].values
+        
+        filter_veh = NonlinearKinematicBicycle(dt=0.05, sMeasurement=1.0)
+        P_matrix = None
+        for i in range(len(gt_x)):
+            if i == 0:  # initalize KF
+                # initial P_matrix
+                P_matrix = np.identity(4)
+            elif i < len(x):
+                # assign new est values
+                x[i] = x_vec_est_new[0][0]
+                y[i] = x_vec_est_new[1][0]
+                heading[i] = x_vec_est_new[2][0]
+                velocity[i] = x_vec_est_new[3][0]
+
+            if i < len(x) - 1:  # no action on last data
+                # filtering
+                x_vec_est = np.array([[x[i]],
+                                        [y[i]],
+                                        [heading[i]],
+                                        [velocity[i]]])
+                z_new = np.array([[x[i + 1]],
+                                    [y[i + 1]],
+                                    [heading[i + 1]],
+                                    [velocity[i + 1]]])
+                x_vec_est_new, P_matrix_new = filter_veh.predict_and_update(
+                    x_vec_est=x_vec_est,
+                    u_vec=np.array([[0.], [0.]]),
+                    P_matrix=P_matrix,
+                    z_new=z_new
+                )
+                P_matrix = P_matrix_new
+        # End of Kalman Filter
+        # Start of adding sgt to the dataframe
+        
+        vx = (x[1:] - x[:-1]) / 0.05
+        vy = (y[1:] - y[:-1]) / 0.05
+        
+
+        df_cmr_to_merge['x'] = x
+        df_cmr_to_merge['y'] = y
+        df_cmr_to_merge['heading'] = heading
+        
+        df_cmr_to_merge['vx'] = np.append(np.nan, vx)
+        df_cmr_to_merge['vy'] = np.append(np.nan, vy)
+        # df_cmr_to_merge['v'] = np.sqrt(df_cmr_to_merge['vx']**2 + df_cmr_to_merge['vy']**2)
+            
+        df_cmr_to_merge['ax'] = np.append(np.nan, (df_cmr_to_merge['vx'].values[1:] - df_cmr_to_merge['vx'].values[:-1]) / 0.05)
+        df_cmr_to_merge['ay'] = np.append(np.nan, (df_cmr_to_merge['vy'].values[1:] - df_cmr_to_merge['vy'].values[:-1]) / 0.05)
+        
+        # df_acc = pd.concat([df_acc, df_cmr_to_merge], axis=0, ignore_index=True)
+        ############################################################################
+        
+        
         # Change the order
         new_order = ['scene_id', 'frame_id', 'object_id', 'category', 'x', 'y', 'z', 'heading', 'vx', 'vy', 'ax', 'ay', 'gt_x', 'gt_y', 'gt_z', 'gt_heading', 'gt_vx', 'gt_vy', 'gt_ax', 'gt_ay']
         df_acc = df_acc[new_order].copy()
@@ -268,13 +381,22 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         df_acc.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
         ######################################################################
         
-        
         # print(df_acc.to_string())
         # Save Data
-        csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_pose_motion.csv')
+        
         df_acc.dropna(inplace=True)
+        df_acc['frame_id'] = df_acc['frame_id'] - df_acc['frame_id'].min()
+        csv_file_path = os.path.join(output_path, dataset_name, 'data', 'object_pose_motion.csv')
         df_acc.to_csv(csv_file_path, index=False)
         
+        # object_id_counts = df_acc['object_id'].value_counts()
+
+        # Filter those that occur 32 times or more
+        # frequent_object_ids = object_id_counts[object_id_counts >= 32]
+
+        # Print out the result
+        # print(f"Dataset: {dataset_name}, num of objects: {len(frequent_object_ids)}")
+    
         ####################### Plot Trajectories #######################
         if plot_estimated_traj:
             plot_poses(df_cmr, os.path.join(output_path, dataset_name, 'plots'), file_folder='est_camera', plot_estimated=True) # Camera
