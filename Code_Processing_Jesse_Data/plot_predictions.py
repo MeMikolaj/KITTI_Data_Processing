@@ -30,7 +30,7 @@ def plot_predictions(df_real, df_prediction, frame_id, ph, output_path, save_png
     
     
     # Plot values
-    plt.figure()
+    plt.figure(figsize=(12,6))
     
     ## Histories are the same (*Trajectron uses up to 20 history frames, exactly the same as ground-truth, CTRV uses up to 8) 
     # plt.plot(x_gt_hist, y_gt_hist, linestyle='-',label=f'History used for prediction', color='black')
@@ -41,7 +41,7 @@ def plot_predictions(df_real, df_prediction, frame_id, ph, output_path, save_png
     # All gt History Values of an object:
     x_gt_hist_all = df_motion.loc[df_motion['frame_id'] <= int(frame_id), 'x'].values
     y_gt_hist_all = df_motion.loc[df_motion['frame_id'] <= int(frame_id), 'y'].values
-    plt.plot(x_gt_hist_all, y_gt_hist_all, ls='-', linewidth=2.0, label=f'DynoSAM Trajectory', color='black')
+    plt.plot(x_gt_hist_all[-31:-1], y_gt_hist_all[-31:-1], ls='-', linewidth=4.0, label=f'Estimated Trajectory', color='black')
     
     # All gt Future Values of an object:
     x_gt_fut_all = df_motion.loc[df_motion['frame_id'] >= int(frame_id), 'x'].values
@@ -50,7 +50,7 @@ def plot_predictions(df_real, df_prediction, frame_id, ph, output_path, save_png
     ########
     
     # Trajectron Prediction
-    plt.plot(np.concatenate(([x_gt_hist[-1]], x_trajectron_pred)), np.concatenate(([y_gt_hist[-1]], y_trajectron_pred)), linewidth=2.0, linestyle='--',label=f'Trajectron++ Prediction', color='red')
+    plt.plot(np.concatenate(([x_gt_hist[-1]], x_trajectron_pred)), np.concatenate(([y_gt_hist[-1]], y_trajectron_pred)), linewidth=5.0, linestyle='--',label=f'Trajectron++ Prediction', color='red')
     
     # Ground-truth Future
     #plt.plot(np.concatenate(([x_gt_hist[-1]], x_gt_future)), np.concatenate(([y_gt_hist[-1]], y_gt_future)), linestyle='--',label=f'Ground-Truth Future', color='blue')
@@ -74,7 +74,7 @@ def plot_predictions(df_real, df_prediction, frame_id, ph, output_path, save_png
     plt.yticks(fontsize=20)  # Change y-axis tick label size
     plt.xlabel('X (m)', fontsize=26)
     plt.ylabel('Y (m)', fontsize=26)
-    plt.legend(loc='best', fontsize=12)
+    # plt.legend(loc='best', fontsize=18)
     plt.axis('equal')
     plt.grid()
     
@@ -104,30 +104,32 @@ def plot_predictions(df_real, df_prediction, frame_id, ph, output_path, save_png
 ##############################################################
 def plot_pred_euc(distance_arr, output_path, save_png=False, save_pdf=False):
     
-    # subarrays = np.array_split(distance_arr, 3)
-    # plt.bar(np.arange(1, len(subarrays[0]) + 1), height=subarrays[0], width=0.33, color='red', label=f"Estimated, avg: {round(sum(subarrays[0])/len(subarrays[0]), 2)}")
-    # plt.bar(0.34+np.arange(1, len(subarrays[1]) + 1), height=subarrays[1], width=0.33, color='green', label=f"Ground Truth, avg: {round(sum(subarrays[1])/len(subarrays[1]), 2)}")
-    # plt.bar(0.67+np.arange(1, len(subarrays[2]) + 1), height=subarrays[2], width=0.33, color='blue', label=f"Ground Truth + EKF, avg: {round(sum(subarrays[2])/len(subarrays[2]), 2)}")
+    plt.figure(figsize=(12,4))
+    subarrays = np.array_split(distance_arr, 3)
+    plt.bar(np.arange(1, len(subarrays[0]) + 1), height=subarrays[0], width=0.33, color='red', label=f"DynoSAM, avg: {round(sum(subarrays[0])/len(subarrays[0]), 2)}")
+    plt.bar(0.34+np.arange(1, len(subarrays[1]) + 1), height=subarrays[1], width=0.33, color='green', label=f"GT, avg: {round(sum(subarrays[1])/len(subarrays[1]), 2)}")
+    plt.bar(0.67+np.arange(1, len(subarrays[2]) + 1), height=subarrays[2], width=0.33, color='blue', label=f"GT + EKF, avg: {round(sum(subarrays[2])/len(subarrays[2]), 2)}")
     
-    data = np.array(distance_arr)
-    normalized_data = (data - np.min(data)) / (np.max(data) - np.min(data))
+    # data = np.array(distance_arr)
+    # normalized_data = (data - np.min(data)) / (np.max(data) - np.min(data))
     
-    plt.bar(np.arange(1, len(normalized_data) + 1), height=normalized_data, color='red', label=f"Estimated, avg: {round(sum(normalized_data)/len(normalized_data), 2)}")
+    # plt.bar(np.arange(1, len(normalized_data) + 1), height=normalized_data, color='red', label=f"Estimated, avg: {round(sum(normalized_data)/len(normalized_data), 2)}")
     #plt.axhline(y=sum(distance_arr)/len(distance_arr), color='red', linestyle='--', label=f'Average = {round(sum(distance_arr)/len(distance_arr), 3)}')
     
+    plt.title(f'Absolute Consistency Error. KITTI 0000. Object 2.', fontsize='22')
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size
-    plt.xlabel('Consecutive Frames', fontsize=22)
-    plt.ylabel('Absolute Consistency Error', fontsize=22)
-    plt.legend(loc='best', fontsize=12)
+    plt.xlabel('Consecutive Frames', fontsize=26)
+    plt.ylabel('ACE (m)', fontsize=26)
+    plt.legend(loc='best', fontsize=18)
     # plt.axis('equal')
     plt.grid()
     
     if save_png:
-        plot_file_path = os.path.join(output_path, f"ConsistencyError_nusc.png")
+        plot_file_path = os.path.join(output_path, f"ConsistencyError.png")
         plt.savefig(plot_file_path, format="png", bbox_inches="tight")
     if save_pdf:
-        plot_file_path = os.path.join(output_path, f"ConsistencyError_nusc.pdf")
+        plot_file_path = os.path.join(output_path, f"ConsistencyError.pdf")
         plt.savefig(plot_file_path, format="pdf", bbox_inches="tight")
     plt.close()
 
@@ -191,11 +193,11 @@ def calculate_ATE(df_prediction, ph):
 
 base_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed'
 
-datasets = ['0061']#, '0757']#['0000', '0003', '0005', '0018', '0020'] # '0061', '0757'
-estimation_methods = ['est']#, 'gt', 'sgt']
+datasets = ['0000']#['0061']#, '0757']#['0000', '0003', '0005', '0018', '0020'] # '0061', '0757'
+estimation_methods = ['est', 'gt', 'sgt']
 
 def process():
-    startup_plotting()
+    startup_plotting(font_size=26)
     
     for dataset_name in datasets:
         data_path   = os.path.join(base_path, dataset_name, 'data', 'object_pose_motion.csv')
@@ -235,8 +237,8 @@ def process():
                 df_real_obj = df_real.copy()
                 df_real_obj = df_real_obj[df_real_obj['object_id'] == object_name]
                 
-                # if object_name != "32a":
-                #     continue
+                if object_name != "2a":
+                    continue
 
                 predictions_path = os.path.join(objects_path, object_name)
                 
@@ -257,8 +259,9 @@ def process():
 
                     
                     # Plot predictions - Trajectron only
-                    ade, fde, last, prev_to_last = plot_predictions(df_real_obj, df_prediction, frame_id, ph=30, output_path=plots_path, save_png=True, save_pdf=True)
-                    
+
+                    ade, fde, last, prev_to_last = plot_predictions(df_real_obj, df_prediction, frame_id, ph=30, output_path=plots_path, save_png=False, save_pdf=False)
+
                     error_t, error_r = calculate_ATE(df_prediction, ph=30)
                     
                     if last_pred == None:
@@ -291,9 +294,9 @@ def process():
             
             
             print(f"Dataset: {dataset_name}, Method: {estimation_method}")
-            # print(f"Results: ADE: {round(ade_error, 2)}, FDE: {round(fde_error, 2)}, ACE: {round(avg_consistency_error, 2)}")
-            print(f"Results: RMSE_t: {round(rmse_t, 2)}, RMSE_r: {round(rmse_r, 2)}")
+            print(f"Results: ADE: {round(ade_error, 2)}, FDE: {round(fde_error, 2)}, ACE: {round(avg_consistency_error, 2)}")
+            # print(f"Results: RMSE_t: {round(rmse_t, 2)}, RMSE_r: {round(rmse_r, 2)}")
             print("---------------------------------------------")
-        # plot_pred_euc(euc_pred_distance, os.path.join(base_path), save_png=True, save_pdf=True)
+        plot_pred_euc(euc_pred_distance, os.path.join(base_path), save_png=True, save_pdf=True)
 if __name__ == '__main__':
     process()

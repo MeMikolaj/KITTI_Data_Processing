@@ -21,11 +21,11 @@ output_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/Jesse_processed/'
 category_path = '/home/mikolaj@acfr.usyd.edu.au/datasets/KITTI/raw'
 
 
-def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_traj=False, 
-                 plot_estimated_headings=False, plot_gt_headings=False, plot_together_headings=False,
-                 plot_estimated_values=False, plot_gt_values=False, plot_together_values=False,
-                 plot_estimated_velocity=False, plot_gt_velocity=False, plot_together_velocity=False,
-                 plot_estimated_CTRV=False, plot_tron=False, plot_xy_pose=False):
+def process_data(plot_estimated_traj=True, plot_gt_traj=False, plot_together_traj=True, 
+                 plot_estimated_headings=True, plot_gt_headings=False, plot_together_headings=True,
+                 plot_estimated_values=True, plot_gt_values=False, plot_together_values=True,
+                 plot_estimated_velocity=True, plot_gt_velocity=False, plot_together_velocity=True,
+                 plot_estimated_CTRV=False, plot_tron=False, plot_xy_pose=True):
     """ Take 3 csv files (camera pose, object pose, object motion) and arguments.
         Change data to XYZ convention, generate plots etc
 
@@ -78,9 +78,11 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         # Get dataset name
         dataset_name = folder_name.split('_')[1] # 0000 from kitti_0000 or 0006 from kitti_0006
         
-        # Only Process 0000 
-        if dataset_name != "0061" and dataset_name != "0103" and dataset_name != "0655" and  dataset_name != "0757":
+        if dataset_name != "0018":
             continue
+        # Only Process 0000 
+        # if dataset_name != "0061" and dataset_name != "0103" and dataset_name != "0655" and  dataset_name != "0757":
+        #     continue
                     
         
         # Create an output folder
@@ -183,10 +185,10 @@ def process_data(plot_estimated_traj=False, plot_gt_traj=False, plot_together_tr
         
         # Get Velocity and Acceleration from motion
         df_acc = add_vel_acc(df_obj, df_motion_pose)        # Vel and Acc
-        df_acc['x'] = df_acc['x']*6
-        df_acc['y'] = df_acc['y']*6
-        df_acc['vx'] = df_acc['vx']*6
-        df_acc['vy'] = df_acc['vy']*6
+        # df_acc['x'] = df_acc['x']*6
+        # df_acc['y'] = df_acc['y']*6
+        # df_acc['vx'] = df_acc['vx']*6
+        # df_acc['vy'] = df_acc['vy']*6
         df_acc.sort_values(by=['scene_id', 'frame_id', 'object_id'], inplace=True)
         
         

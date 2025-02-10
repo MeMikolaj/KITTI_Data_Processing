@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 def plot_eucd_xy_1(df, output_path, file_folder=""):
 
     # Plotting
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(12, 4))
     
     df_data = df.copy()
     
@@ -28,20 +28,20 @@ def plot_eucd_xy_1(df, output_path, file_folder=""):
     # Estimated
     df_data['euc_d'] = np.sqrt(df_data['x']**2 + df_data['y']**2)
     df_data['euc_d_diff'] = df_data['euc_d'].diff()  # Calculate difference
-    plt.plot(x_values, df_data['euc_d_diff'], label=f'DynoSAM Estimated', color='red', zorder=10)
+    plt.plot(x_values, df_data['euc_d_diff'], label=f'Estimated', color='red', zorder=10)
     
     # Ground Truth
     df_data['gt_euc_d'] = np.sqrt(df_data['gt_x']**2 + df_data['gt_y']**2)
     df_data['gt_euc_d_diff'] = df_data['gt_euc_d'].diff()  # Calculate difference
-    plt.plot(x_values, df_data['gt_euc_d_diff'], label=f'Ground Truth', color='green', zorder=5)
+    plt.plot(x_values, df_data['gt_euc_d_diff'], label=f'GT', color='green', zorder=5)
     
     # Smoothed Ground Truth
     df_data['sgt_euc_d'] = np.sqrt(df_data['sgt_x']**2 + df_data['sgt_y']**2)
     df_data['sgt_euc_d_diff'] = df_data['sgt_euc_d'].diff()  # Calculate difference
-    plt.plot(x_values, df_data['sgt_euc_d_diff'], label=f'Ground Truth + EKF', color='blue', zorder=8)
+    plt.plot(x_values, df_data['sgt_euc_d_diff'], label=f'GT + EKF', color='blue', zorder=8)
 
 
-    plt.title(f'Euclidean distance between two consecutive states. Sequence 0000. Object 2.')
+    plt.title(f'Euclidean distance between two consecutive states. KITTI 0000. Object 2.', fontsize='22')
     
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size
@@ -49,9 +49,8 @@ def plot_eucd_xy_1(df, output_path, file_folder=""):
     plt.xlabel('Consecutive Frames', fontsize=26)
     plt.ylabel('Euclidean Distance (m)', fontsize=26)
     
-    plt.legend(loc='upper right', fontsize=18)
-    
-    plt.legend()
+    plt.legend(loc='best', fontsize=18)
+
     plt.grid()
 
     plot_file_path = os.path.join(output_path, "xy_euc_kitti0000_2a.png")
@@ -65,7 +64,7 @@ def plot_eucd_xy_1(df, output_path, file_folder=""):
 def plot_trajectories_1(df, output_path, file_folder=""):
 
     # Plotting
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(12, 4))
     
     df_data = df.copy()
     
@@ -84,13 +83,13 @@ def plot_trajectories_1(df, output_path, file_folder=""):
 
 
     # Estimated
-    plt.plot(x, y, label=f'DynoSAM Estimated', color='red', zorder=10)
+    plt.plot(x, y, label=f'Estimated', color='red', zorder=10)
     
     # Ground Truth
-    plt.plot(gt_x, gt_y, label=f'Ground Truth', color='green', zorder=5)
+    plt.plot(gt_x, gt_y, label=f'GT', color='green', zorder=5)
     
     # Smoothed Ground Truth
-    plt.plot(sgt_x, sgt_y, label=f'Ground Truth + EKF', color='blue', zorder=8)
+    plt.plot(sgt_x, sgt_y, label=f'GT + EKF', color='blue', zorder=8)
 
 
     # Arrows
@@ -105,7 +104,7 @@ def plot_trajectories_1(df, output_path, file_folder=""):
 
 
 
-    plt.title(f'Trajectory. Sequence 0000. Object 2.')
+    plt.title(f'Trajectory. KITTI 0000. Object 2.', fontsize='22')
     
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size
@@ -115,9 +114,8 @@ def plot_trajectories_1(df, output_path, file_folder=""):
     plt.xlabel('X (m)', fontsize=26)
     plt.ylabel('Y (m)', fontsize=26)
     
-    plt.legend(loc='upper right', fontsize=18)
+    plt.legend(loc='best', fontsize=18)
     
-    plt.legend()
     plt.grid()
 
     plot_file_path = os.path.join(output_path, "trajectory_kitti0000_2a.png")
@@ -131,18 +129,18 @@ def plot_trajectories_1(df, output_path, file_folder=""):
 def plot_heading_values_1(df, output_path, file_folder=""):
 
     # Plotting
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(12, 4))
 
 
     x_values = np.arange(len(df))
 
-    plt.plot(x_values, df['heading'], label=f'DynoSAM Estimated', color='red', zorder=10)
+    plt.plot(x_values, df['heading'], label=f'Estimated', color='red', zorder=10)
 
-    plt.plot(x_values, df['gt_heading'], label=f'Ground Truth', color='green', zorder=5)
+    plt.plot(x_values, df['gt_heading'], label=f'GT', color='green', zorder=5)
 
-    plt.plot(x_values, df['sgt_heading'], label=f'Ground Truth + EKF', color='blue', zorder=8)
+    plt.plot(x_values, df['sgt_heading'], label=f'GT + EKF', color='blue', zorder=8)
 
-    plt.title(f'Heading Values. Sequence 0000. Object 2.')
+    plt.title(f'Heading Values. KITTI 0000. Object 2.', fontsize='22')
     
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size
@@ -150,9 +148,8 @@ def plot_heading_values_1(df, output_path, file_folder=""):
     plt.xlabel('Consecutive Frames', fontsize=26)
     plt.ylabel('Heading Values (rad)', fontsize=26)
     
-    plt.legend(loc='upper right', fontsize=18)
+    plt.legend(loc='best', fontsize=18)
     
-    plt.legend()
     plt.grid()
 
     plot_file_path = os.path.join(output_path, "heading_val_kitti0000_2a.png")
@@ -166,7 +163,7 @@ def plot_heading_values_1(df, output_path, file_folder=""):
 def plot_velocity_values_1(df, output_path, file_folder=""):
 
     # Plotting
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(12, 4))
     
     df_data = df.copy()
     
@@ -177,16 +174,16 @@ def plot_velocity_values_1(df, output_path, file_folder=""):
     sgt_v = np.sqrt(df_data['sgt_vx']**2 + df_data['sgt_vy']**2)
 
     # Estimated
-    plt.plot(x_values, v, label=f'DynoSAM Estimated', color='red', zorder=10)
+    plt.plot(x_values, v, label=f'Estimated', color='red', zorder=10)
     
     # Ground Truth
-    plt.plot(x_values, gt_v, label=f'Ground Truth', color='green', zorder=5)
+    plt.plot(x_values, gt_v, label=f'GT', color='green', zorder=5)
     
     # Smoothed Ground Truth
-    plt.plot(x_values, sgt_v, label=f'Ground Truth + EKF', color='blue', zorder=8)
+    plt.plot(x_values, sgt_v, label=f'GT + EKF', color='blue', zorder=8)
 
 
-    plt.title(f'Velocity Values. Sequence 0000. Object 2.')
+    plt.title(f'Velocity Values. KITTI 0000. Object 2.', fontsize='22')
     
     plt.xticks(fontsize=20)  # Change x-axis tick label size
     plt.yticks(fontsize=20)  # Change y-axis tick label size
@@ -194,9 +191,8 @@ def plot_velocity_values_1(df, output_path, file_folder=""):
     plt.xlabel('Consecutive Frames', fontsize=26)
     plt.ylabel('Velocity Values (m/s)', fontsize=26)
     
-    plt.legend(loc='upper right', fontsize=18)
+    plt.legend(loc='best', fontsize=18)
     
-    plt.legend()
     plt.grid()
 
     plot_file_path = os.path.join(output_path, "v_val_kitti0000_2a.png")
